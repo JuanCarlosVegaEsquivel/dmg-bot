@@ -2,16 +2,16 @@ import discord
 from discord import app_commands
 import aiohttp
 import os
-
+ 
 # ── Setup ──────────────────────────────────────────────────────
 intents = discord.Intents.default()
 client  = discord.Client(intents=intents)
 tree    = app_commands.CommandTree(client)
-
+ 
 HYPIXEL_API  = "https://api.hypixel.net/v2"
 MOJANG_API   = "https://api.mojang.com/users/profiles/minecraft"
 BOT_COLOR    = 0xe84040
-
+ 
 # ── Ready ──────────────────────────────────────────────────────
 @client.event
 async def on_ready():
@@ -21,7 +21,7 @@ async def on_ready():
         print(f"✅ Synced {len(synced)} commands")
     except Exception as e:
         print(f"❌ Sync error: {e}")
-
+ 
 # ── Helpers ────────────────────────────────────────────────────
 def fmt(val):
     if val is None: return "—"
@@ -29,12 +29,12 @@ def fmt(val):
     if n >= 1_000_000: return f"{n/1_000_000:.1f}M"
     if n >= 1_000:     return f"{n/1_000:.1f}K"
     return str(int(n)) if n == int(n) else str(round(n, 1))
-
+ 
 def calc_damage(strength=0, crit_damage=50, weapon_dmg=100):
     base = (5 + weapon_dmg) * (1 + strength / 100)
     crit = base * (1 + crit_damage / 100)
     return int(base), int(crit)
-
+ 
 def damage_rating(crit):
     if crit >= 2_000_000: return "🔴 God Roll"
     if crit >= 500_000:   return "🟠 Endgame"
@@ -42,7 +42,7 @@ def damage_rating(crit):
     if crit >= 30_000:    return "🟢 Mid Game"
     if crit >= 5_000:     return "🔵 Early Mid"
     return "⚪ Early Game"
-
+ 
 def xp_to_level(xp, max_level=60):
     """Convert skill XP to level using SkyBlock XP table."""
     XP_TABLE = [
@@ -60,7 +60,7 @@ def xp_to_level(xp, max_level=60):
         if xp < req:
             return max(0, i - 1)
     return max_level
-
+ 
 async def get_uuid(username: str, session: aiohttp.ClientSession):
     """Get player UUID from Mojang API."""
     async with session.get(f"{MOJANG_API}/{username}") as resp:
@@ -68,23 +68,23 @@ async def get_uuid(username: str, session: aiohttp.ClientSession):
             return None
         data = await resp.json()
         return data.get("id")
-
+ 
 async def fetch(username: str, profile_name: str = None):
     """Fetch player data from Hypixel API."""
     api_key = os.environ.get("HYPIXEL_API_KEY")
     if not api_key:
         return None, "HYPIXEL_API_KEY not set in environment variables."
-
+ 
     headers = {"API-Key": api_key}
-
+ 
     async with aiohttp.ClientSession() as session:
         # Step 1: Get UUID from Mojang
         uuid = await get_uuid(username, session)
         if not uuid:
             return None, f"Player **{username}** not found. Check the username."
-
+ 
         print(f"UUID for {username}: {uuid}")
-
+ 
         # Step 2: Get SkyBlock profiles from Hypixel
         async with session.get(
             f"{HYPIXEL_API}/skyblock/profiles",
@@ -99,14 +99,14 @@ async def fetch(username: str, profile_name: str = None):
             if resp.status != 200:
                 return None, f"Hypixel API error (HTTP {resp.status})."
             data = await resp.json()
-
+ 
     if not data.get("success"):
         return None, f"API returned error: {data.get('cause', 'Unknown error')}"
-
+ 
     profiles = data.get("profiles")
     if not profiles:
         return None, f"No SkyBlock profiles found for **{username}**. Make sure they've played SkyBlock."
-
+ 
     # Pick profile
     if profile_name:
         profile = next((p for p in profiles if p.get("cute_name", "").lower() == profile_name.lower()), None)
@@ -115,19 +115,19 @@ async def fetch(username: str, profile_name: str = None):
             return None, f"Profile **{profile_name}** not found. Available: {names}"
     else:
         profile = next((p for p in profiles if p.get("selected")), None) or profiles[0]
-
+ 
     member = profile.get("members", {}).get(uuid)
     if not member:
         return None, "Could not find your data inside the profile."
-
+ 
     return (member, profile, profiles, username, uuid), None
-
+ 
 def parse_stats(member: dict):
     """Extract useful stats from member data."""
     # SkyBlock stores skill XP, not final stats directly
     # We calculate what we can from the raw data
     exp = member.get("player_data", {}).get("experience", {})
-
+ 
     skills = {
         "combat":   xp_to_level(exp.get("SKILL_COMBAT",   0)),
         "farming":  xp_to_level(exp.get("SKILL_FARMING",  0)),
@@ -138,30 +138,30 @@ def parse_stats(member: dict):
         "alchemy":  xp_to_level(exp.get("SKILL_ALCHEMY",  0)),
         "taming":   xp_to_level(exp.get("SKILL_TAMING",   0)),
     }
-
+ 
     # Skill average
     valid = [v for v in skills.values() if v > 0]
     skill_avg = round(sum(valid) / len(valid), 1) if valid else 0
-
+ 
     # Slayer levels
     slayers = member.get("slayer", {}).get("slayer_bosses", {})
     slayer_info = {}
     for name in ["zombie", "spider", "wolf", "enderman", "blaze", "vampire"]:
         xp = slayers.get(name, {}).get("xp", 0)
         slayer_info[name] = xp
-
+ 
     # Dungeons
     dungeon_data = member.get("dungeons", {}).get("dungeon_types", {}).get("catacombs", {})
     cata_xp      = dungeon_data.get("experience", 0)
     cata_level   = xp_to_level(cata_xp, max_level=50)
-
+ 
     # Stats (base combat stats)
     raw_stats = member.get("player_stats", {})
-
+ 
     # Networth approximation from purse
     purse = member.get("currencies", {}).get("coin_purse", 0)
     bank  = member.get("profile", {}).get("bank_account", 0)
-
+ 
     return {
         "skills":     skills,
         "skill_avg":  skill_avg,
@@ -172,12 +172,12 @@ def parse_stats(member: dict):
         "bank":       bank,
         "raw_stats":  raw_stats,
     }
-
+ 
 # ── /ping ──────────────────────────────────────────────────────
 @tree.command(name="ping", description="Test if the bot is working")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("✅ Bot is alive!")
-
+ 
 # ── /info ──────────────────────────────────────────────────────
 @tree.command(name="info", description="About this bot")
 async def info(interaction: discord.Interaction):
@@ -197,27 +197,27 @@ async def info(interaction: discord.Interaction):
     embed.add_field(name="📌 Data source", value="Official Hypixel API v2", inline=False)
     embed.set_footer(text="Dmg Bot • by VectorGOD19")
     await interaction.response.send_message(embed=embed)
-
+ 
 # ── /stats ─────────────────────────────────────────────────────
 @tree.command(name="stats", description="View a player's SkyBlock profile overview")
 @app_commands.describe(username="Minecraft username", profile="Profile name (optional, e.g. Watermelon)")
 async def stats(interaction: discord.Interaction, username: str, profile: str = None):
     await interaction.response.defer()
-
+ 
     result, err = await fetch(username, profile)
     if err:
         await interaction.followup.send(f"❌ {err}", ephemeral=True)
         return
-
+ 
     member, prof, all_profiles, ign, uuid = result
     s = parse_stats(member)
-
+ 
     embed = discord.Embed(
         title=f"🍉 {ign}'s {prof.get('cute_name', '?')} Profile",
         color=BOT_COLOR
     )
     embed.set_thumbnail(url=f"https://mc-heads.net/avatar/{uuid}/64")
-
+ 
     # Skills
     sk = s["skills"]
     embed.add_field(name="📚 Skills", value=(
@@ -228,14 +228,14 @@ async def stats(interaction: discord.Interaction, username: str, profile: str = 
         f"🌲 Foraging: **{sk['foraging']}**\n"
         f"📖 Enchanting: **{sk['enchanting']}**"
     ), inline=True)
-
+ 
     # Slayers
     sl = s["slayers"]
     def slayer_fmt(xp):
         if xp >= 1_000_000: return f"{xp/1_000_000:.1f}M"
         if xp >= 1_000:     return f"{xp/1_000:.0f}K"
         return str(xp)
-
+ 
     embed.add_field(name="⚔ Slayers (XP)", value=(
         f"🧟 Zombie: **{slayer_fmt(sl.get('zombie',0))}**\n"
         f"🕷 Spider: **{slayer_fmt(sl.get('spider',0))}**\n"
@@ -244,7 +244,7 @@ async def stats(interaction: discord.Interaction, username: str, profile: str = 
         f"🔥 Blaze: **{slayer_fmt(sl.get('blaze',0))}**\n"
         f"🧛 Vampire: **{slayer_fmt(sl.get('vampire',0))}**"
     ), inline=True)
-
+ 
     # Overview
     embed.add_field(name="📊 Overview", value=(
         f"⚗ Skill Avg: **{s['skill_avg']}**\n"
@@ -252,7 +252,7 @@ async def stats(interaction: discord.Interaction, username: str, profile: str = 
         f"💰 Purse: **{fmt(s['purse'])}**\n"
         f"🏦 Bank: **{fmt(s['bank'])}**"
     ), inline=True)
-
+ 
     # Damage preview (estimated from combat level)
     combat_lvl = sk["combat"]
     est_strength = combat_lvl * 4
@@ -262,11 +262,11 @@ async def stats(interaction: discord.Interaction, username: str, profile: str = 
         value=f"Crit ≈ **{fmt(crit)}** | {damage_rating(crit)}",
         inline=False
     )
-
+ 
     names = " · ".join(p.get("cute_name", "?") for p in all_profiles)
     embed.set_footer(text=f"Profiles: {names}  |  /profile to switch  |  by VectorGOD19")
     await interaction.followup.send(embed=embed)
-
+ 
 # ── /damage ────────────────────────────────────────────────────
 @tree.command(name="damage", description="Calculate your damage and what to improve")
 @app_commands.describe(
@@ -287,46 +287,46 @@ async def damage(
     profile: str = None
 ):
     await interaction.response.defer()
-
+ 
     result, err = await fetch(username, profile)
     if err:
         await interaction.followup.send(f"❌ {err}", ephemeral=True)
         return
-
+ 
     member, prof, all_profiles, ign, uuid = result
-
+ 
     base, crit = calc_damage(strength, crit_damage, weapon_damage)
-
+ 
     embed = discord.Embed(
         title=f"💥 Damage Calculator — {ign}",
         description=f"Profile: **{prof.get('cute_name','?')}** | Weapon DMG: **{weapon_damage}**",
         color=BOT_COLOR
     )
     embed.set_thumbnail(url=f"https://mc-heads.net/avatar/{uuid}/64")
-
+ 
     embed.add_field(name="📊 Your Stats", value=(
         f"⚔ Strength: **{fmt(strength)}**\n"
         f"🎯 Crit Chance: **{fmt(crit_chance)}%**\n"
         f"💥 Crit Damage: **{fmt(crit_damage)}%**\n"
     ), inline=True)
-
+ 
     embed.add_field(name="🎯 Calculated Damage", value=(
         f"Normal hit: **{fmt(base)}**\n"
         f"Crit hit: **{fmt(crit)}**\n"
         f"Rating: {damage_rating(crit)}"
     ), inline=True)
-
+ 
     # Simulate improvements
     sim_str = int((5 + weapon_damage) * (1 + (strength + 50) / 100) * (1 + crit_damage / 100))
     sim_cd  = int((5 + weapon_damage) * (1 + strength / 100) * (1 + (crit_damage + 50) / 100))
     sim_wep = int((5 + weapon_damage + 100) * (1 + strength / 100) * (1 + crit_damage / 100))
-
+ 
     embed.add_field(name="📈 If you improve...", value=(
         f"+50 Strength → **{fmt(sim_str)}** crit\n"
         f"+50 Crit Dmg → **{fmt(sim_cd)}** crit\n"
         f"+100 Wep Dmg → **{fmt(sim_wep)}** crit"
     ), inline=False)
-
+ 
     tips = []
     if crit_chance < 80:
         tips.append(f"🎯 **Crit Chance** {crit_chance}% → need **80%** min. Use Itchy reforge or Crit potions.")
@@ -336,11 +336,11 @@ async def damage(
         tips.append(f"⚔ **Strength** {strength} → aim for **300+**. Fierce reforge, Strength potions.")
     if not tips:
         tips.append("✅ Stats look solid! Focus on better weapon damage and armor upgrades.")
-
+ 
     embed.add_field(name="💡 Suggestions", value="\n\n".join(tips[:3]), inline=False)
     embed.set_footer(text="Dmg Bot • by VectorGOD19")
     await interaction.followup.send(embed=embed)
-
+ 
 # ── /profile ───────────────────────────────────────────────────
 @tree.command(name="profile", description="View stats for a specific SkyBlock profile")
 @app_commands.describe(username="Minecraft username", profile="Profile name (e.g. Watermelon)")
@@ -350,17 +350,17 @@ async def profile_cmd(interaction: discord.Interaction, username: str, profile: 
     if err:
         await interaction.followup.send(f"❌ {err}", ephemeral=True)
         return
-
+ 
     member, prof, all_profiles, ign, uuid = result
     s = parse_stats(member)
     sk = s["skills"]
-
+ 
     embed = discord.Embed(
         title=f"🍉 {ign}'s {prof.get('cute_name','?')} Profile",
         color=BOT_COLOR
     )
     embed.set_thumbnail(url=f"https://mc-heads.net/avatar/{uuid}/64")
-
+ 
     embed.add_field(name="📚 Skills", value=(
         f"⚔ Combat: **{sk['combat']}**\n"
         f"🌾 Farming: **{sk['farming']}**\n"
@@ -369,13 +369,13 @@ async def profile_cmd(interaction: discord.Interaction, username: str, profile: 
         f"🌲 Foraging: **{sk['foraging']}**\n"
         f"📖 Enchanting: **{sk['enchanting']}**"
     ), inline=True)
-
+ 
     sl = s["slayers"]
     def slayer_fmt(xp):
         if xp >= 1_000_000: return f"{xp/1_000_000:.1f}M"
         if xp >= 1_000:     return f"{xp/1_000:.0f}K"
         return str(xp)
-
+ 
     embed.add_field(name="⚔ Slayers", value=(
         f"🧟 Zombie: **{slayer_fmt(sl.get('zombie',0))}**\n"
         f"🕷 Spider: **{slayer_fmt(sl.get('spider',0))}**\n"
@@ -384,25 +384,21 @@ async def profile_cmd(interaction: discord.Interaction, username: str, profile: 
         f"🔥 Blaze: **{slayer_fmt(sl.get('blaze',0))}**\n"
         f"🧛 Vampire: **{slayer_fmt(sl.get('vampire',0))}**"
     ), inline=True)
-
+ 
     embed.add_field(name="📊 Overview", value=(
         f"⚗ Skill Avg: **{s['skill_avg']}**\n"
         f"⚰ Catacombs: **{s['cata_level']}**\n"
         f"💰 Purse: **{fmt(s['purse'])}**\n"
         f"🏦 Bank: **{fmt(s['bank'])}**"
     ), inline=True)
-
+ 
     embed.set_footer(text="Dmg Bot • by VectorGOD19")
     await interaction.followup.send(embed=embed)
-
+ 
 # ── Run ────────────────────────────────────────────────────────
-token = os.environ.get("DISCORD_TOKEN")
-if not token:
-    print("❌ DISCORD_TOKEN not set!")
-else:
-    client.run(token)
-
-
+ 
+ 
+ 
 # ── Boss Data ──────────────────────────────────────────────────
 BOSS_DATA = {
     # ── Slayers ────────────────────────────────────────────────
@@ -411,40 +407,40 @@ BOSS_DATA = {
     "revenant_t3":  {"name":"🧟 Revenant Horror T3",  "hp":400_000,    "defense":0,   "type":"Zombie Slayer",   "notes":"Pestilence + Explosive Assault. Need at least 900 HP + 400 DEF."},
     "revenant_t4":  {"name":"🧟 Revenant Horror T4",  "hp":1_500_000,  "defense":0,   "type":"Zombie Slayer",   "notes":"1000 DPS from boss. Need Rev Armor + Reaper Falchion. 800+ DEF recommended."},
     "revenant_t5":  {"name":"🧟 Atoned Horror T5",    "hp":6_000_000,  "defense":0,   "type":"Zombie Slayer",   "notes":"Uses completely different skills. Endgame only."},
-
+ 
     "tarantula_t1": {"name":"🕷 Tarantula Broodfather T1","hp":10_000,   "defense":0,   "type":"Spider Slayer",   "notes":"Simple boss. Ender Armor is enough."},
     "tarantula_t2": {"name":"🕷 Tarantula Broodfather T2","hp":54_000,   "defense":0,   "type":"Spider Slayer",   "notes":"Vermin miniboss spawns at 54k HP. Watch out."},
     "tarantula_t3": {"name":"🕷 Tarantula Broodfather T3","hp":144_000,  "defense":0,   "type":"Spider Slayer",   "notes":"High DPS boss. Tarantula Armor + Livid Dagger recommended."},
     "tarantula_t4": {"name":"🕷 Mutant Tarantula T4", "hp":576_000,    "defense":0,   "type":"Spider Slayer",   "notes":"Fast and deadly. Shadow Assassin + Livid Dagger/Shadow Fury. ~300 MP."},
-
+ 
     "sven_t1":      {"name":"🐺 Sven Packmaster T1",  "hp":2_000,      "defense":0,   "type":"Wolf Slayer",     "notes":"Deals True Damage. Fight in water to avoid slam attacks."},
     "sven_t2":      {"name":"🐺 Sven Packmaster T2",  "hp":40_000,     "defense":0,   "type":"Wolf Slayer",     "notes":"True Damage starts here. 500 DEF + AOTD recommended."},
     "sven_t3":      {"name":"🐺 Sven Packmaster T3",  "hp":750_000,    "defense":0,   "type":"Wolf Slayer",     "notes":"Protected phase: pups guard the boss. Fight in water — pups drown."},
     "sven_t4":      {"name":"🐺 Beast King Sven T4",  "hp":2_000_000,  "defense":0,   "type":"Wolf Slayer",     "notes":"Mastiff Armor is a must. High True Damage. Let it hit you every 15s or it regens."},
-
+ 
     "voidgloom_t1": {"name":"🌀 Voidgloom Seraph T1", "hp":300_000,    "defense":300, "type":"Enderman Slayer", "notes":"Not a pushover like other T1s. Hitshield activates at 100%/66%/33% HP."},
     "voidgloom_t2": {"name":"🌀 Voidgloom Seraph T2", "hp":1_000_000,  "defense":500, "type":"Enderman Slayer", "notes":"Massive step up. Need 3/4 Shadow Assassin + Crystallized Heart minimum."},
     "voidgloom_t3": {"name":"🌀 Voidgloom Seraph T3", "hp":2_500_000,  "defense":750, "type":"Enderman Slayer", "notes":"Necromancy Souls required unless maxed skills. Atomsplit Katana recommended."},
     "voidgloom_t4": {"name":"🌀 Dark Void Seraph T4", "hp":6_000_000,  "defense":1000,"type":"Enderman Slayer", "notes":"Invulnerability beams + Hitshield. Final Destination Armor (25k kills) + Soul Whip."},
-
+ 
     "inferno_t1":   {"name":"🔥 Inferno Demonlord T1","hp":500_000,    "defense":100, "type":"Blaze Slayer",    "notes":"Requires True Defense. Stay in green circle during Mania attack."},
     "inferno_t2":   {"name":"🔥 Inferno Demonlord T2","hp":2_000_000,  "defense":300, "type":"Blaze Slayer",    "notes":"Twinclaws attack is lethal. Use Holy Ice to reduce its damage."},
     "inferno_t3":   {"name":"🔥 Quazii / Typhoeus T3","hp":5_000_000,  "defense":500, "type":"Blaze Slayer",    "notes":"Laser beams deal 75% max HP True Damage. Fire Pits spawn at low HP. 3/4 Frozen Blaze or Crimson Armor."},
     "inferno_t4":   {"name":"🔥 Inferno Demonlord T4","hp":12_000_000, "defense":750, "type":"Blaze Slayer",    "notes":"Endgame only. Kindlebane + Mawdredge daggers T2 required. High True Defense needed."},
-
+ 
     "vampire_t1":   {"name":"🧛 Riftstalker Bloodfiend T1","hp":1_000_000, "defense":200,"type":"Vampire Slayer (Rift)","notes":"Rift dimension — most normal items don't work. Activate effigies before starting."},
     "vampire_t2":   {"name":"🧛 Riftstalker Bloodfiend T2","hp":2_500_000, "defense":400,"type":"Vampire Slayer (Rift)","notes":"Skill-based boss. Use Holy Ice for Twinclaws ability."},
     "vampire_t3":   {"name":"🧛 Riftstalker Bloodfiend T3","hp":5_000_000, "defense":600,"type":"Vampire Slayer (Rift)","notes":"Boss becomes complex. High Rift Damage needed."},
     "vampire_t4":   {"name":"🧛 Riftstalker Bloodfiend T4","hp":10_000_000,"defense":800,"type":"Vampire Slayer (Rift)","notes":"Endgame Rift. Best Rift gear required."},
     "vampire_t5":   {"name":"🧛 Bloodfiend T5",       "hp":20_000_000, "defense":1000,"type":"Vampire Slayer (Rift)","notes":"Extremely difficult. Top-tier Rift gear only."},
-
+ 
     # ── Kuudra ─────────────────────────────────────────────────
     "kuudra_basic":    {"name":"🦑 Kuudra Basic",    "hp":5_000_000,  "defense":200, "type":"Kuudra",  "notes":"Req: Combat 22. One role: Specialist. Orbs deal good damage. Necron/Storm/Terror Armor."},
     "kuudra_hot":      {"name":"🦑 Kuudra Hot",      "hp":15_000_000, "defense":400, "type":"Kuudra",  "notes":"Req: Combat 27 + 1000 rep. Ballista required for final blow. Mobs have more HP."},
     "kuudra_burning":  {"name":"🦑 Kuudra Burning",  "hp":30_000_000, "defense":600, "type":"Kuudra",  "notes":"Req: Combat 32 + 3000 rep. Must STUN before shooting. RCM setup required. DPS + Stunner roles."},
     "kuudra_fiery":    {"name":"🦑 Kuudra Fiery",    "hp":60_000_000, "defense":800, "type":"Kuudra",  "notes":"Req: Combat 37 + 7000 rep. Strong mob spawns. Terror Armor + Terminator + 100% Attack Speed."},
     "kuudra_infernal": {"name":"🦑 Kuudra Infernal", "hp":100_000_000,"defense":1000,"type":"Kuudra",  "notes":"Req: Combat 42 + 12000 rep. Final phase in Kuudra's Lair. Duplex Terminator + Precursor Eye. Best loot in game."},
-
+ 
     # ── Dungeons ───────────────────────────────────────────────
     "cata_f1": {"name":"⚰ The Bonzo (F1)",        "hp":500_000,    "defense":100, "type":"Catacombs Floor 1", "notes":"Intro dungeon. Almost any gear works."},
     "cata_f2": {"name":"⚰ The Scarf (F2)",         "hp":1_000_000,  "defense":200, "type":"Catacombs Floor 2", "notes":"Soul summons. Need decent damage to clear adds."},
@@ -457,7 +453,7 @@ BOSS_DATA = {
     "cata_m6": {"name":"⚰ Sadan (M6)",             "hp":30_000_000, "defense":900, "type":"Master Catacombs",  "notes":"Master mode. True endgame content."},
     "cata_m7": {"name":"⚰ Necron (M7)",            "hp":60_000_000, "defense":1000,"type":"Master Catacombs",  "notes":"Hardest dungeon. Wither King has massive HP. Top-tier gear only."},
 }
-
+ 
 # Group options for the dropdown
 BOSS_CATEGORIES = {
     "🧟 Zombie Slayer":       ["revenant_t1","revenant_t2","revenant_t3","revenant_t4","revenant_t5"],
@@ -469,36 +465,36 @@ BOSS_CATEGORIES = {
     "🦑 Kuudra":               ["kuudra_basic","kuudra_hot","kuudra_burning","kuudra_fiery","kuudra_infernal"],
     "⚰ Dungeons":             ["cata_f1","cata_f2","cata_f3","cata_f4","cata_f5","cata_f6","cata_f7","cata_m3","cata_m6","cata_m7"],
 }
-
+ 
 def boss_embed(boss_key: str, strength=0, crit_damage=50, weapon_dmg=100) -> discord.Embed:
     b = BOSS_DATA[boss_key]
     base_dmg, crit_dmg = calc_damage(strength, crit_damage, weapon_dmg)
-
+ 
     # How many hits to kill
     effective_hp = b["hp"] * (1 + b["defense"] / 100)
     hits_normal  = max(1, int(effective_hp / base_dmg)) if base_dmg > 0 else 999
     hits_crit    = max(1, int(effective_hp / crit_dmg))  if crit_dmg > 0 else 999
-
+ 
     embed = discord.Embed(
         title=b["name"],
         description=f"**Type:** {b['type']}",
         color=BOT_COLOR
     )
-
+ 
     embed.add_field(name="📊 Boss Stats", value=(
         f"❤ HP: **{fmt(b['hp'])}**\n"
         f"🛡 Defense: **{b['defense']}**\n"
         f"🛡 Effective HP: **{fmt(effective_hp)}**"
     ), inline=True)
-
+ 
     embed.add_field(name="💥 Your Damage vs This Boss", value=(
         f"Normal hit: **{fmt(base_dmg)}**\n"
         f"Crit hit: **{fmt(crit_dmg)}**\n"
         f"Hits to kill: ~**{fmt(hits_crit)}** crits"
     ), inline=True)
-
+ 
     embed.add_field(name="💡 Tips", value=b["notes"], inline=False)
-
+ 
     # Damage formula explanation
     embed.add_field(name="📐 Damage Formula", value=(
         "```\n"
@@ -507,24 +503,24 @@ def boss_embed(boss_key: str, strength=0, crit_damage=50, weapon_dmg=100) -> dis
         "Eff. HP = Boss HP × (1 + Defense/100)\n"
         "```"
     ), inline=False)
-
+ 
     embed.set_footer(text="Dmg Bot • by VectorGOD19 | Use /bosses with your stats for accurate results")
     return embed
-
-
+ 
+ 
 # ── /bosses command ────────────────────────────────────────────
 class BossCategorySelect(discord.ui.Select):
     def __init__(self, strength, crit_damage, weapon_dmg):
         self.strength    = strength
         self.crit_damage = crit_damage
         self.weapon_dmg  = weapon_dmg
-
+ 
         options = [
             discord.SelectOption(label=cat, value=cat)
             for cat in BOSS_CATEGORIES.keys()
         ]
         super().__init__(placeholder="Select a boss category...", options=options)
-
+ 
     async def callback(self, interaction: discord.Interaction):
         category = self.values[0]
         boss_keys = BOSS_CATEGORIES[category]
@@ -534,34 +530,34 @@ class BossCategorySelect(discord.ui.Select):
             view=view,
             ephemeral=True
         )
-
+ 
 class BossCategoryView(discord.ui.View):
     def __init__(self, strength, crit_damage, weapon_dmg):
         super().__init__()
         self.add_item(BossCategorySelect(strength, crit_damage, weapon_dmg))
-
+ 
 class BossTierSelect(discord.ui.Select):
     def __init__(self, boss_keys, strength, crit_damage, weapon_dmg):
         self.strength    = strength
         self.crit_damage = crit_damage
         self.weapon_dmg  = weapon_dmg
-
+ 
         options = [
             discord.SelectOption(label=BOSS_DATA[k]["name"], value=k)
             for k in boss_keys
         ]
         super().__init__(placeholder="Select a boss tier...", options=options)
-
+ 
     async def callback(self, interaction: discord.Interaction):
         embed = boss_embed(self.values[0], self.strength, self.crit_damage, self.weapon_dmg)
         await interaction.response.send_message(embed=embed)
-
+ 
 class BossTierView(discord.ui.View):
     def __init__(self, boss_keys, strength, crit_damage, weapon_dmg):
         super().__init__()
         self.add_item(BossTierSelect(boss_keys, strength, crit_damage, weapon_dmg))
-
-
+ 
+ 
 @tree.command(name="bosses", description="Calculate your damage against any boss")
 @app_commands.describe(
     strength="Your total Strength stat",
@@ -580,3 +576,10 @@ async def bosses(
         view=view,
         ephemeral=True
     )
+ 
+# ── Run ────────────────────────────────────────────────────────
+token = os.environ.get("DISCORD_TOKEN")
+if not token:
+    print("❌ DISCORD_TOKEN not set!")
+else:
+    client.run(token)
