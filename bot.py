@@ -42,7 +42,6 @@ async def info(interaction: discord.Interaction):
         "`/info` — This page"
     ), inline=False)
     embed.add_field(name="👨‍💻 Created by", value="**VectorGOD19** 🏆", inline=False)
-    embed.add_field(name="📌 Requirements", value="Run `/api new` in Hypixel to enable API.", inline=False)
     embed.set_footer(text="Dmg Bot • by VectorGOD19")
     await interaction.response.send_message(embed=embed)
  
