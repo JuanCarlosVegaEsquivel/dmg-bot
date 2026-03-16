@@ -70,18 +70,31 @@ def damage_rating(crit):
     return "⚪ Early Game"
  
 async def fetch(username, profile_name=None):
-    url = f"{SKYCRYPT_API}/{username}"
-    try:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                print(f"API status for {username}: {resp.status}")
-                if resp.status != 200:
-                    return None, f"Player **{username}** not found (HTTP {resp.status}). Check username and run `/api new` in Hypixel."
-                data = await resp.json()
-    except Exception as e:
-        print(f"Fetch error: {e}")
-        return None, f"Could not reach SkyCrypt API: {e}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json",
+        "Referer": "https://sky.shiiyu.moe/"
+    }
+    urls_to_try = [
+        f"https://sky.shiiyu.moe/api/v2/profile/{username}",
+        f"https://api.slothpixel.me/api/skyblock/profile/{username}",
+    ]
+    data = None
+    for url in urls_to_try:
+        try:
+            async with aiohttp.ClientSession(headers=headers) as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    print(f"Trying {url} -> status {resp.status}")
+                    if resp.status == 200:
+                        data = await resp.json()
+                        break
+                    else:
+                        print(f"Failed {resp.status}, trying next...")
+        except Exception as e:
+            print(f"Error with {url}: {e}")
+            continue
+    if not data:
+        return None, f"Could not load data for **{username}**. Make sure the SkyBlock API is enabled: SkyBlock Menu -> Settings -> API Settings -> enable all toggles."
  
     if "error" in data:
         return None, data["error"]
@@ -238,3 +251,4 @@ if not token:
     print("❌ DISCORD_TOKEN not set!")
 else:
     client.run(token)
+ 
