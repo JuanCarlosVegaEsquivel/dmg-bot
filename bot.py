@@ -3,7 +3,7 @@ from discord import app_commands
 import aiohttp
 import os
  
-#Setup
+# ── Setup ──────────────────────────────────────────────────────
 intents = discord.Intents.default()
 client  = discord.Client(intents=intents)
 tree    = app_commands.CommandTree(client)
@@ -11,7 +11,7 @@ tree    = app_commands.CommandTree(client)
 SKYCRYPT_API = "https://sky.shiiyu.moe/api/v2/profile"
 BOT_COLOR    = 0xe84040
  
-#Ready
+# ── Ready ──────────────────────────────────────────────────────
 @client.event
 async def on_ready():
     print(f"✅ Bot online: {client.user}")
@@ -21,12 +21,12 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Sync error: {e}")
  
-#/ping — test command
+# ── /ping — test command ───────────────────────────────────────
 @tree.command(name="ping", description="Test if the bot is working")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("✅ Bot is alive! Try `/stats <username>` now.")
  
-#/info
+# ── /info ──────────────────────────────────────────────────────
 @tree.command(name="info", description="About this bot")
 async def info(interaction: discord.Interaction):
     embed = discord.Embed(
@@ -46,7 +46,7 @@ async def info(interaction: discord.Interaction):
     embed.set_footer(text="Dmg Bot • by VectorGOD19")
     await interaction.response.send_message(embed=embed)
  
-#Helpers
+# ── Helpers ────────────────────────────────────────────────────
 def fmt(val):
     if val is None: return "—"
     n = float(val)
@@ -62,7 +62,7 @@ def calc_damage(s, weapon_dmg=100):
     return int(base), int(crit)
  
 def damage_rating(crit):
-    if crit >= 2_000_000: return "🔴 Admin?"
+    if crit >= 2_000_000: return "🔴 God Roll"
     if crit >= 500_000:   return "🟠 Endgame"
     if crit >= 100_000:   return "🟡 Late Game"
     if crit >= 30_000:    return "🟢 Mid Game"
@@ -72,7 +72,8 @@ def damage_rating(crit):
 async def fetch(username, profile_name=None):
     url = f"{SKYCRYPT_API}/{username}"
     try:
-        async with aiohttp.ClientSession() as session:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        async with aiohttp.ClientSession(headers=headers) as session:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 print(f"API status for {username}: {resp.status}")
                 if resp.status != 200:
@@ -237,4 +238,3 @@ if not token:
     print("❌ DISCORD_TOKEN not set!")
 else:
     client.run(token)
- 
