@@ -509,73 +509,51 @@ def boss_embed(boss_key: str, strength=0, crit_damage=50, weapon_dmg=100) -> dis
  
  
 # ── /bosses command ────────────────────────────────────────────
-class BossCategorySelect(discord.ui.Select):
-    def __init__(self, strength, crit_damage, weapon_dmg):
-        self.strength    = strength
-        self.crit_damage = crit_damage
-        self.weapon_dmg  = weapon_dmg
  
-        options = [
-            discord.SelectOption(label=cat, value=cat)
-            for cat in BOSS_CATEGORIES.keys()
-        ]
-        super().__init__(placeholder="Select a boss category...", options=options)
- 
-    async def callback(self, interaction: discord.Interaction):
-        category = self.values[0]
-        boss_keys = BOSS_CATEGORIES[category]
-        view = BossTierSelect(boss_keys, self.strength, self.crit_damage, self.weapon_dmg)
-        await interaction.response.send_message(
-            f"Now select a specific boss from **{category}**:",
-            view=view,
-            ephemeral=True
-        )
- 
-class BossCategoryView(discord.ui.View):
-    def __init__(self, strength, crit_damage, weapon_dmg):
-        super().__init__()
-        self.add_item(BossCategorySelect(strength, crit_damage, weapon_dmg))
- 
-class BossTierSelect(discord.ui.Select):
-    def __init__(self, boss_keys, strength, crit_damage, weapon_dmg):
-        self.strength    = strength
-        self.crit_damage = crit_damage
-        self.weapon_dmg  = weapon_dmg
- 
-        options = [
-            discord.SelectOption(label=BOSS_DATA[k]["name"], value=k)
-            for k in boss_keys
-        ]
-        super().__init__(placeholder="Select a boss tier...", options=options)
- 
-    async def callback(self, interaction: discord.Interaction):
-        embed = boss_embed(self.values[0], self.strength, self.crit_damage, self.weapon_dmg)
-        await interaction.response.send_message(embed=embed)
- 
-class BossTierView(discord.ui.View):
-    def __init__(self, boss_keys, strength, crit_damage, weapon_dmg):
-        super().__init__()
-        self.add_item(BossTierSelect(boss_keys, strength, crit_damage, weapon_dmg))
+async def boss_autocomplete(interaction: discord.Interaction, current: str):
+    all_bosses = [
+        (k, BOSS_DATA[k]["name"]) for k in BOSS_DATA
+    ]
+    current_lower = current.lower()
+    matches = [
+        app_commands.Choice(name=name, value=key)
+        for key, name in all_bosses
+        if current_lower in name.lower() or current_lower in key.lower()
+    ]
+    return matches[:25]
  
  
 @tree.command(name="bosses", description="Calculate your damage against any boss")
 @app_commands.describe(
+    boss="Type the boss name (e.g. Voidgloom T4, Kuudra Infernal)",
     strength="Your total Strength stat",
     crit_damage="Your Crit Damage %",
-    weapon_damage="Your weapon's damage stat (default 100)"
+    weapon_damage="Your weapon damage stat (default 100)"
 )
+@app_commands.autocomplete(boss=boss_autocomplete)
 async def bosses(
     interaction: discord.Interaction,
+    boss: str,
     strength: int = 0,
     crit_damage: int = 50,
     weapon_damage: int = 100
 ):
-    view = BossCategoryView(strength, crit_damage, weapon_damage)
-    await interaction.response.send_message(
-        f"⚔ **Boss Damage Calculator**\nStats: **{strength}** STR | **{crit_damage}%** CD | **{weapon_damage}** Wep DMG\n\nSelect a category:",
-        view=view,
-        ephemeral=True
-    )
+    if boss not in BOSS_DATA:
+        # Try fuzzy match
+        boss_lower = boss.lower()
+        match = next((k for k in BOSS_DATA if boss_lower in k.lower() or boss_lower in BOSS_DATA[k]["name"].lower()), None)
+        if not match:
+            names = ", ".join(BOSS_DATA[k]["name"] for k in list(BOSS_DATA.keys())[:10])
+            await interaction.response.send_message(
+                f"❌ Boss **{boss}** not found. Try typing the name and selecting from the autocomplete list.\nExamples: {names}",
+                ephemeral=True
+            )
+            return
+        boss = match
+ 
+    embed = boss_embed(boss, strength, crit_damage, weapon_damage)
+    await interaction.response.send_message(embed=embed)
+ 
  
 # ── Run ────────────────────────────────────────────────────────
 token = os.environ.get("DISCORD_TOKEN")
