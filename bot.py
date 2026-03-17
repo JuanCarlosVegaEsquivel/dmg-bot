@@ -402,37 +402,38 @@ async def profile_cmd(interaction: discord.Interaction, username: str, profile: 
 # ── Boss Data ──────────────────────────────────────────────────
 BOSS_DATA = {
     # ── Slayers ────────────────────────────────────────────────
-    "revenant_t1":  {"name":"🧟 Revenant Horror T1",  "hp":500,        "defense":0,   "type":"Zombie Slayer",   "notes":"Easy intro boss. Any gear works."},
-    "revenant_t2":  {"name":"🧟 Revenant Horror T2",  "hp":20_000,     "defense":0,   "type":"Zombie Slayer",   "notes":"Pestilence debuff reduces your defense -25%. Kill fast."},
-    "revenant_t3":  {"name":"🧟 Revenant Horror T3",  "hp":400_000,    "defense":0,   "type":"Zombie Slayer",   "notes":"Pestilence + Explosive Assault. Need at least 900 HP + 400 DEF."},
-    "revenant_t4":  {"name":"🧟 Revenant Horror T4",  "hp":1_500_000,  "defense":0,   "type":"Zombie Slayer",   "notes":"1000 DPS from boss. Need Rev Armor + Reaper Falchion. 800+ DEF recommended."},
-    "revenant_t5":  {"name":"🧟 Atoned Horror T5",    "hp":6_000_000,  "defense":0,   "type":"Zombie Slayer",   "notes":"Uses completely different skills. Endgame only."},
+    "revenant_t1":  {"name":"🧟 Revenant T1",  "hp":500,        "defense":0,   "type":"Zombie Slayer",   "notes":"Easy intro boss. Any gear works."},
+    "revenant_t2":  {"name":"🧟 Revenant T2",  "hp":20_000,     "defense":0,   "type":"Zombie Slayer",   "notes":"Pestilence debuff reduces your defense -25%. Kill fast."},
+    "revenant_t3":  {"name":"🧟 Revenant T3",  "hp":400_000,    "defense":0,   "type":"Zombie Slayer",   "notes":"Pestilence + Explosive Assault. Need at least 900 HP + 400 DEF."},
+    "revenant_t4":  {"name":"🧟 Revenant T4",  "hp":1_500_000,  "defense":0,   "type":"Zombie Slayer",   "notes":"1000 DPS from boss. Need Rev Armor + Reaper Falchion. 800+ DEF recommended."},
+    "revenant_t5":  {"name":"🧟 Revenant T5",  "hp":10_000_000, "defense":0,   "type":"Zombie Slayer",   "notes":"Immune to ability damage, arrows and AotD. Explosive TNT attack + Thermonuclear nuke every 30s. Reaper Falchion required. Melee only."},
  
-    "tarantula_t1": {"name":"🕷 Tarantula Broodfather T1","hp":10_000,   "defense":0,   "type":"Spider Slayer",   "notes":"Simple boss. Ender Armor is enough."},
-    "tarantula_t2": {"name":"🕷 Tarantula Broodfather T2","hp":54_000,   "defense":0,   "type":"Spider Slayer",   "notes":"Vermin miniboss spawns at 54k HP. Watch out."},
-    "tarantula_t3": {"name":"🕷 Tarantula Broodfather T3","hp":144_000,  "defense":0,   "type":"Spider Slayer",   "notes":"High DPS boss. Tarantula Armor + Livid Dagger recommended."},
-    "tarantula_t4": {"name":"🕷 Mutant Tarantula T4", "hp":576_000,    "defense":0,   "type":"Spider Slayer",   "notes":"Fast and deadly. Shadow Assassin + Livid Dagger/Shadow Fury. ~300 MP."},
+    "tarantula_t1": {"name":"🕷 Tarantula T1",  "hp":750,        "defense":0,   "type":"Spider Slayer",   "notes":"Simple boss. Spider Hat + any decent weapon."},
+    "tarantula_t2": {"name":"🕷 Tarantula T2",  "hp":30_000,     "defense":0,   "type":"Spider Slayer",   "notes":"Spider Hat + Strong Armor + AOTE works well."},
+    "tarantula_t3": {"name":"🕷 Tarantula T3",  "hp":144_000,    "defense":0,   "type":"Spider Slayer",   "notes":"Stand under a roof to prevent boss from jumping behind you. Tarantula Armor + Livid Dagger."},
+    "tarantula_t4": {"name":"🕷 Tarantula T4",  "hp":576_000,    "defense":0,   "type":"Spider Slayer",   "notes":"Fast and deadly. Tarantula Armor (2k kills) + Recluse Fang. Avoid cobwebs. ~300 MP."},
+    "tarantula_t4": {"name":"🕷 Tarantula T5",  "hp":10_000_000,  "defense":0,   "type":"Spider Slayer",   "notes":"Immune to ability damage, bats deal a lot of dmg, bring sustaine and Primordial armor with lots of kills"},
  
-    "sven_t1":      {"name":"🐺 Sven Packmaster T1",  "hp":2_000,      "defense":0,   "type":"Wolf Slayer",     "notes":"Deals True Damage. Fight in water to avoid slam attacks."},
-    "sven_t2":      {"name":"🐺 Sven Packmaster T2",  "hp":40_000,     "defense":0,   "type":"Wolf Slayer",     "notes":"True Damage starts here. 500 DEF + AOTD recommended."},
-    "sven_t3":      {"name":"🐺 Sven Packmaster T3",  "hp":750_000,    "defense":0,   "type":"Wolf Slayer",     "notes":"Protected phase: pups guard the boss. Fight in water — pups drown."},
-    "sven_t4":      {"name":"🐺 Beast King Sven T4",  "hp":2_000_000,  "defense":0,   "type":"Wolf Slayer",     "notes":"Mastiff Armor is a must. High True Damage. Let it hit you every 15s or it regens."},
+    "sven_t1":      {"name":"🐺 Sven T1",       "hp":2_000,      "defense":0,   "type":"Wolf Slayer",     "notes":"Fight in water — prevents slam attacks. No True Damage yet."},
+    "sven_t2":      {"name":"🐺 Sven T2",        "hp":40_000,     "defense":0,   "type":"Wolf Slayer",     "notes":"True Damage starts here. 500 DEF minimum. Let it hit you or it regens."},
+    "sven_t3":      {"name":"🐺 Sven T3",        "hp":750_000,    "defense":0,   "type":"Wolf Slayer",     "notes":"Protected phase: pups guard the boss. Fight in water — pups drown. Let it hit you every 15s."},
+    "sven_t4":      {"name":"🐺 Sven T4",        "hp":2_000_000,  "defense":0,   "type":"Wolf Slayer",     "notes":"Mastiff Armor is a must. High True Damage. Crit Damage halved. Bloody/Itchy ~325 MP. Sorrow armor is pretty good."},
  
-    "voidgloom_t1": {"name":"🌀 Voidgloom Seraph T1", "hp":300_000,    "defense":300, "type":"Enderman Slayer", "notes":"Not a pushover like other T1s. Hitshield activates at 100%/66%/33% HP."},
-    "voidgloom_t2": {"name":"🌀 Voidgloom Seraph T2", "hp":1_000_000,  "defense":500, "type":"Enderman Slayer", "notes":"Massive step up. Need 3/4 Shadow Assassin + Crystallized Heart minimum."},
-    "voidgloom_t3": {"name":"🌀 Voidgloom Seraph T3", "hp":2_500_000,  "defense":750, "type":"Enderman Slayer", "notes":"Necromancy Souls required unless maxed skills. Atomsplit Katana recommended."},
-    "voidgloom_t4": {"name":"🌀 Dark Void Seraph T4", "hp":6_000_000,  "defense":1000,"type":"Enderman Slayer", "notes":"Invulnerability beams + Hitshield. Final Destination Armor (25k kills) + Soul Whip."},
+    "voidgloom_t1": {"name":"🌀 Voidgloom T1",  "hp":300_000,    "defense":300, "type":"Enderman Slayer", "notes":"Not a pushover. Hitshield at 100%/66%/33% HP slows fight. SA Armor + AOTD minimum."},
+    "voidgloom_t2": {"name":"🌀 Voidgloom T2",  "hp":1_000_000,  "defense":500, "type":"Enderman Slayer", "notes":"Massive step up. 3/4 Shadow Assassin + Crystallized Heart minimum. ~200 MP."},
+    "voidgloom_t3": {"name":"🌀 Voidgloom T3",  "hp":2_500_000,  "defense":750, "type":"Enderman Slayer", "notes":"Necromancy Souls required unless maxed skills. Atomsplit Katana + Final Destination Armor."},
+    "voidgloom_t4": {"name":"🌀 Voidgloom T4",  "hp":6_000_000,  "defense":1000,"type":"Enderman Slayer", "notes":"Invulnerability beams + Hitshield. FD Armor 25k kills + Soul Whip + Wither Cloak Sword."},
  
-    "inferno_t1":   {"name":"🔥 Inferno Demonlord T1","hp":500_000,    "defense":100, "type":"Blaze Slayer",    "notes":"Requires True Defense. Stay in green circle during Mania attack."},
-    "inferno_t2":   {"name":"🔥 Inferno Demonlord T2","hp":2_000_000,  "defense":300, "type":"Blaze Slayer",    "notes":"Twinclaws attack is lethal. Use Holy Ice to reduce its damage."},
-    "inferno_t3":   {"name":"🔥 Quazii / Typhoeus T3","hp":5_000_000,  "defense":500, "type":"Blaze Slayer",    "notes":"Laser beams deal 75% max HP True Damage. Fire Pits spawn at low HP. 3/4 Frozen Blaze or Crimson Armor."},
-    "inferno_t4":   {"name":"🔥 Inferno Demonlord T4","hp":12_000_000, "defense":750, "type":"Blaze Slayer",    "notes":"Endgame only. Kindlebane + Mawdredge daggers T2 required. High True Defense needed."},
+    "inferno_t1":   {"name":"🔥 Inferno T1",    "hp":500_000,    "defense":100, "type":"Blaze Slayer",    "notes":"Requires True Defense. Stay in green circle during Mania. Frozen Blaze or Crimson Armor."},
+    "inferno_t2":   {"name":"🔥 Inferno T2",    "hp":2_000_000,  "defense":300, "type":"Blaze Slayer",    "notes":"Twinclaws attack is lethal — use Holy Ice when you hear the sound cue."},
+    "inferno_t3":   {"name":"🔥 Inferno T3",    "hp":5_000_000,  "defense":500, "type":"Blaze Slayer",    "notes":"Laser beams deal 75% max HP True Damage. Fire Pits at low HP. 3/4 Frozen Blaze or Crimson."},
+    "inferno_t4":   {"name":"🔥 Inferno T4",    "hp":12_000_000, "defense":750, "type":"Blaze Slayer",    "notes":"Endgame only. Kindlebane + Mawdredge T2 daggers required, get T3 daggers when you can. High True Defense essential."},
  
-    "vampire_t1":   {"name":"🧛 Riftstalker Bloodfiend T1","hp":1_000_000, "defense":200,"type":"Vampire Slayer (Rift)","notes":"Rift dimension — most normal items don't work. Activate effigies before starting."},
-    "vampire_t2":   {"name":"🧛 Riftstalker Bloodfiend T2","hp":2_500_000, "defense":400,"type":"Vampire Slayer (Rift)","notes":"Skill-based boss. Use Holy Ice for Twinclaws ability."},
-    "vampire_t3":   {"name":"🧛 Riftstalker Bloodfiend T3","hp":5_000_000, "defense":600,"type":"Vampire Slayer (Rift)","notes":"Boss becomes complex. High Rift Damage needed."},
-    "vampire_t4":   {"name":"🧛 Riftstalker Bloodfiend T4","hp":10_000_000,"defense":800,"type":"Vampire Slayer (Rift)","notes":"Endgame Rift. Best Rift gear required."},
-    "vampire_t5":   {"name":"🧛 Bloodfiend T5",       "hp":20_000_000, "defense":1000,"type":"Vampire Slayer (Rift)","notes":"Extremely difficult. Top-tier Rift gear only."},
+    "vampire_t1":   {"name":"🧛 Vampire T1",    "hp":1_000_000,  "defense":200, "type":"Vampire Slayer (Rift)", "notes":"Rift dimension — most normal items don't work. Activate effigies before starting for Rift Damage boost."},
+    "vampire_t2":   {"name":"🧛 Vampire T2",    "hp":2_500_000,  "defense":400, "type":"Vampire Slayer (Rift)", "notes":"Twinclaws attack. Use Holy Ice when you hear the sound cue."},
+    "vampire_t3":   {"name":"🧛 Vampire T3",    "hp":5_000_000,  "defense":600, "type":"Vampire Slayer (Rift)", "notes":"High Rift Damage needed. Skill-based fight."},
+    "vampire_t4":   {"name":"🧛 Vampire T4",    "hp":10_000_000, "defense":800, "type":"Vampire Slayer (Rift)", "notes":"Endgame Rift. Best Rift gear required."},
+    "vampire_t5":   {"name":"🧛 Vampire T5",    "hp":20_000_000, "defense":1000,"type":"Vampire Slayer (Rift)", "notes":"Extremely difficult. Top-tier Rift gear only."},
  
     # ── Kuudra ─────────────────────────────────────────────────
     "kuudra_basic":    {"name":"🦑 Kuudra Basic",    "hp":5_000_000,  "defense":200, "type":"Kuudra",  "notes":"Req: Combat 22. One role: Specialist. Orbs deal good damage. Necron/Storm/Terror Armor."},
@@ -561,3 +562,4 @@ if not token:
     print("❌ DISCORD_TOKEN not set!")
 else:
     client.run(token)
+ 
