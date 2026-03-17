@@ -168,8 +168,6 @@ def parse_stats(member: dict):
         "slayers":    slayer_info,
         "cata_level": cata_level,
         "cata_xp":    cata_xp,
-        "purse":      purse,
-        "bank":       bank,
         "raw_stats":  raw_stats,
     }
  
@@ -237,12 +235,11 @@ async def stats(interaction: discord.Interaction, username: str, profile: str = 
         return str(xp)
  
     embed.add_field(name="⚔ Slayers (XP)", value=(
-        f"🧟 Zombie: **{slayer_fmt(sl.get('zombie',0))}**\n"
-        f"🕷 Spider: **{slayer_fmt(sl.get('spider',0))}**\n"
+        f"🧟 Revenant: **{slayer_fmt(sl.get('zombie',0))}**\n"
+        f"🕷 Tarantula: **{slayer_fmt(sl.get('spider',0))}**\n"
         f"🐺 Wolf: **{slayer_fmt(sl.get('wolf',0))}**\n"
         f"🌀 Enderman: **{slayer_fmt(sl.get('enderman',0))}**\n"
         f"🔥 Blaze: **{slayer_fmt(sl.get('blaze',0))}**\n"
-        f"🧛 Vampire: **{slayer_fmt(sl.get('vampire',0))}**"
     ), inline=True)
  
     # Overview
@@ -388,8 +385,6 @@ async def profile_cmd(interaction: discord.Interaction, username: str, profile: 
     embed.add_field(name="📊 Overview", value=(
         f"⚗ Skill Avg: **{s['skill_avg']}**\n"
         f"⚰ Catacombs: **{s['cata_level']}**\n"
-        f"💰 Purse: **{fmt(s['purse'])}**\n"
-        f"🏦 Bank: **{fmt(s['bank'])}**"
     ), inline=True)
  
     embed.set_footer(text="Dmg Bot • by VectorGOD19")
@@ -412,7 +407,7 @@ BOSS_DATA = {
     "tarantula_t2": {"name":"🕷 Tarantula T2",  "hp":30_000,     "defense":0,   "type":"Spider Slayer",   "notes":"Spider Hat + Strong Armor + AOTE works well."},
     "tarantula_t3": {"name":"🕷 Tarantula T3",  "hp":144_000,    "defense":0,   "type":"Spider Slayer",   "notes":"Stand under a roof to prevent boss from jumping behind you. Tarantula Armor + Livid Dagger."},
     "tarantula_t4": {"name":"🕷 Tarantula T4",  "hp":576_000,    "defense":0,   "type":"Spider Slayer",   "notes":"Fast and deadly. Tarantula Armor (2k kills) + Recluse Fang. Avoid cobwebs. ~300 MP."},
-    "tarantula_t4": {"name":"🕷 Tarantula T5",  "hp":10_000_000,  "defense":0,   "type":"Spider Slayer",   "notes":"Immune to ability damage, bats deal a lot of dmg, bring sustaine and Primordial armor with lots of kills"},
+    "tarantula_t5": {"name":"🕷 Tarantula T5",  "hp":10_000_000,  "defense":0,   "type":"Spider Slayer",   "notes":"Immune to ability damage, bats deal a lot of dmg, bring sustaine and Primordial armor with lots of kills"},
  
     "sven_t1":      {"name":"🐺 Sven T1",       "hp":2_000,      "defense":0,   "type":"Wolf Slayer",     "notes":"Fight in water — prevents slam attacks. No True Damage yet."},
     "sven_t2":      {"name":"🐺 Sven T2",        "hp":40_000,     "defense":0,   "type":"Wolf Slayer",     "notes":"True Damage starts here. 500 DEF minimum. Let it hit you or it regens."},
