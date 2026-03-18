@@ -2,16 +2,16 @@ import discord
 from discord import app_commands
 import aiohttp
 import os
- 
+
 # ── Setup ──────────────────────────────────────────────────────
 intents = discord.Intents.default()
 client  = discord.Client(intents=intents)
 tree    = app_commands.CommandTree(client)
- 
+
 HYPIXEL_API  = "https://api.hypixel.net/v2"
 MOJANG_API   = "https://api.mojang.com/users/profiles/minecraft"
 BOT_COLOR    = 0xe84040
- 
+
 # ── Ready ──────────────────────────────────────────────────────
 @client.event
 async def on_ready():
@@ -21,7 +21,7 @@ async def on_ready():
         print(f"✅ Synced {len(synced)} commands")
     except Exception as e:
         print(f"❌ Sync error: {e}")
- 
+
 # ── Helpers ────────────────────────────────────────────────────
 def fmt(val):
     if val is None: return "—"
@@ -29,12 +29,12 @@ def fmt(val):
     if n >= 1_000_000: return f"{n/1_000_000:.1f}M"
     if n >= 1_000:     return f"{n/1_000:.1f}K"
     return str(int(n)) if n == int(n) else str(round(n, 1))
- 
+
 def calc_damage(strength=0, crit_damage=50, weapon_dmg=100):
     base = (5 + weapon_dmg) * (1 + strength / 100)
     crit = base * (1 + crit_damage / 100)
     return int(base), int(crit)
- 
+
 def damage_rating(crit):
     if crit >= 2_000_000: return "🔴 God Roll"
     if crit >= 500_000:   return "🟠 Endgame"
@@ -42,7 +42,7 @@ def damage_rating(crit):
     if crit >= 30_000:    return "🟢 Mid Game"
     if crit >= 5_000:     return "🔵 Early Mid"
     return "⚪ Early Game"
- 
+
 def xp_to_level(xp, max_level=60):
     """Convert skill XP to level using SkyBlock XP table."""
     XP_TABLE = [
@@ -60,7 +60,7 @@ def xp_to_level(xp, max_level=60):
         if xp < req:
             return max(0, i - 1)
     return max_level
- 
+
 async def get_uuid(username: str, session: aiohttp.ClientSession):
     """Get player UUID from Mojang API."""
     async with session.get(f"{MOJANG_API}/{username}") as resp:
@@ -68,23 +68,23 @@ async def get_uuid(username: str, session: aiohttp.ClientSession):
             return None
         data = await resp.json()
         return data.get("id")
- 
+
 async def fetch(username: str, profile_name: str = None):
     """Fetch player data from Hypixel API."""
     api_key = os.environ.get("HYPIXEL_API_KEY")
     if not api_key:
         return None, "HYPIXEL_API_KEY not set in environment variables."
- 
+
     headers = {"API-Key": api_key}
- 
+
     async with aiohttp.ClientSession() as session:
         # Step 1: Get UUID from Mojang
         uuid = await get_uuid(username, session)
         if not uuid:
             return None, f"Player **{username}** not found. Check the username."
- 
+
         print(f"UUID for {username}: {uuid}")
- 
+
         # Step 2: Get SkyBlock profiles from Hypixel
         async with session.get(
             f"{HYPIXEL_API}/skyblock/profiles",
@@ -99,14 +99,14 @@ async def fetch(username: str, profile_name: str = None):
             if resp.status != 200:
                 return None, f"Hypixel API error (HTTP {resp.status})."
             data = await resp.json()
- 
+
     if not data.get("success"):
         return None, f"API returned error: {data.get('cause', 'Unknown error')}"
- 
+
     profiles = data.get("profiles")
     if not profiles:
         return None, f"No SkyBlock profiles found for **{username}**. Make sure they've played SkyBlock."
- 
+
     # Pick profile
     if profile_name:
         profile = next((p for p in profiles if p.get("cute_name", "").lower() == profile_name.lower()), None)
@@ -115,19 +115,19 @@ async def fetch(username: str, profile_name: str = None):
             return None, f"Profile **{profile_name}** not found. Available: {names}"
     else:
         profile = next((p for p in profiles if p.get("selected")), None) or profiles[0]
- 
+
     member = profile.get("members", {}).get(uuid)
     if not member:
         return None, "Could not find your data inside the profile."
- 
+
     return (member, profile, profiles, username, uuid), None
- 
+
 def parse_stats(member: dict):
     """Extract useful stats from member data."""
     # SkyBlock stores skill XP, not final stats directly
     # We calculate what we can from the raw data
     exp = member.get("player_data", {}).get("experience", {})
- 
+
     skills = {
         "combat":   xp_to_level(exp.get("SKILL_COMBAT",   0)),
         "farming":  xp_to_level(exp.get("SKILL_FARMING",  0)),
@@ -138,30 +138,30 @@ def parse_stats(member: dict):
         "alchemy":  xp_to_level(exp.get("SKILL_ALCHEMY",  0)),
         "taming":   xp_to_level(exp.get("SKILL_TAMING",   0)),
     }
- 
+
     # Skill average
     valid = [v for v in skills.values() if v > 0]
     skill_avg = round(sum(valid) / len(valid), 1) if valid else 0
- 
+
     # Slayer levels
     slayers = member.get("slayer", {}).get("slayer_bosses", {})
     slayer_info = {}
     for name in ["zombie", "spider", "wolf", "enderman", "blaze", "vampire"]:
         xp = slayers.get(name, {}).get("xp", 0)
         slayer_info[name] = xp
- 
+
     # Dungeons
     dungeon_data = member.get("dungeons", {}).get("dungeon_types", {}).get("catacombs", {})
     cata_xp      = dungeon_data.get("experience", 0)
     cata_level   = xp_to_level(cata_xp, max_level=50)
- 
+
     # Stats (base combat stats)
     raw_stats = member.get("player_stats", {})
- 
+
     # Networth approximation from purse
     purse = member.get("currencies", {}).get("coin_purse", 0)
     bank  = member.get("profile", {}).get("bank_account", 0)
- 
+
     return {
         "skills":     skills,
         "skill_avg":  skill_avg,
@@ -172,12 +172,12 @@ def parse_stats(member: dict):
         "bank":       bank,
         "raw_stats":  raw_stats,
     }
- 
+
 # ── /ping ──────────────────────────────────────────────────────
 @tree.command(name="ping", description="Test if the bot is working")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("✅ Bot is alive!")
- 
+
 # ── /info ──────────────────────────────────────────────────────
 @tree.command(name="info", description="About this bot")
 async def info(interaction: discord.Interaction):
@@ -197,27 +197,27 @@ async def info(interaction: discord.Interaction):
     embed.add_field(name="📌 Data source", value="Official Hypixel API v2", inline=False)
     embed.set_footer(text="Dmg Bot • by VectorGOD19")
     await interaction.response.send_message(embed=embed)
- 
+
 # ── /stats ─────────────────────────────────────────────────────
 @tree.command(name="stats", description="View a player's SkyBlock profile overview")
 @app_commands.describe(username="Minecraft username", profile="Profile name (optional, e.g. Watermelon)")
 async def stats(interaction: discord.Interaction, username: str, profile: str = None):
     await interaction.response.defer()
- 
+
     result, err = await fetch(username, profile)
     if err:
         await interaction.followup.send(f"❌ {err}", ephemeral=True)
         return
- 
+
     member, prof, all_profiles, ign, uuid = result
     s = parse_stats(member)
- 
+
     embed = discord.Embed(
         title=f"🍉 {ign}'s {prof.get('cute_name', '?')} Profile",
         color=BOT_COLOR
     )
     embed.set_thumbnail(url=f"https://mc-heads.net/avatar/{uuid}/64")
- 
+
     # Skills
     sk = s["skills"]
     embed.add_field(name="📚 Skills", value=(
@@ -228,14 +228,14 @@ async def stats(interaction: discord.Interaction, username: str, profile: str = 
         f"🌲 Foraging: **{sk['foraging']}**\n"
         f"📖 Enchanting: **{sk['enchanting']}**"
     ), inline=True)
- 
+
     # Slayers
     sl = s["slayers"]
     def slayer_fmt(xp):
         if xp >= 1_000_000: return f"{xp/1_000_000:.1f}M"
         if xp >= 1_000:     return f"{xp/1_000:.0f}K"
         return str(xp)
- 
+
     embed.add_field(name="⚔ Slayers (XP)", value=(
         f"🧟 Zombie: **{slayer_fmt(sl.get('zombie',0))}**\n"
         f"🕷 Spider: **{slayer_fmt(sl.get('spider',0))}**\n"
@@ -244,7 +244,7 @@ async def stats(interaction: discord.Interaction, username: str, profile: str = 
         f"🔥 Blaze: **{slayer_fmt(sl.get('blaze',0))}**\n"
         f"🧛 Vampire: **{slayer_fmt(sl.get('vampire',0))}**"
     ), inline=True)
- 
+
     # Overview
     embed.add_field(name="📊 Overview", value=(
         f"⚗ Skill Avg: **{s['skill_avg']}**\n"
@@ -252,7 +252,7 @@ async def stats(interaction: discord.Interaction, username: str, profile: str = 
         f"💰 Purse: **{fmt(s['purse'])}**\n"
         f"🏦 Bank: **{fmt(s['bank'])}**"
     ), inline=True)
- 
+
     # Damage preview (estimated from combat level)
     combat_lvl = sk["combat"]
     est_strength = combat_lvl * 4
@@ -262,11 +262,11 @@ async def stats(interaction: discord.Interaction, username: str, profile: str = 
         value=f"Crit ≈ **{fmt(crit)}** | {damage_rating(crit)}",
         inline=False
     )
- 
+
     names = " · ".join(p.get("cute_name", "?") for p in all_profiles)
     embed.set_footer(text=f"Profiles: {names}  |  /profile to switch  |  by VectorGOD19")
     await interaction.followup.send(embed=embed)
- 
+
 # ── /damage ────────────────────────────────────────────────────
 @tree.command(name="damage", description="Calculate your damage and what to improve")
 @app_commands.describe(
@@ -287,46 +287,46 @@ async def damage(
     profile: str = None
 ):
     await interaction.response.defer()
- 
+
     result, err = await fetch(username, profile)
     if err:
         await interaction.followup.send(f"❌ {err}", ephemeral=True)
         return
- 
+
     member, prof, all_profiles, ign, uuid = result
- 
+
     base, crit = calc_damage(strength, crit_damage, weapon_damage)
- 
+
     embed = discord.Embed(
         title=f"💥 Damage Calculator — {ign}",
         description=f"Profile: **{prof.get('cute_name','?')}** | Weapon DMG: **{weapon_damage}**",
         color=BOT_COLOR
     )
     embed.set_thumbnail(url=f"https://mc-heads.net/avatar/{uuid}/64")
- 
+
     embed.add_field(name="📊 Your Stats", value=(
         f"⚔ Strength: **{fmt(strength)}**\n"
         f"🎯 Crit Chance: **{fmt(crit_chance)}%**\n"
         f"💥 Crit Damage: **{fmt(crit_damage)}%**\n"
     ), inline=True)
- 
+
     embed.add_field(name="🎯 Calculated Damage", value=(
         f"Normal hit: **{fmt(base)}**\n"
         f"Crit hit: **{fmt(crit)}**\n"
         f"Rating: {damage_rating(crit)}"
     ), inline=True)
- 
+
     # Simulate improvements
     sim_str = int((5 + weapon_damage) * (1 + (strength + 50) / 100) * (1 + crit_damage / 100))
     sim_cd  = int((5 + weapon_damage) * (1 + strength / 100) * (1 + (crit_damage + 50) / 100))
     sim_wep = int((5 + weapon_damage + 100) * (1 + strength / 100) * (1 + crit_damage / 100))
- 
+
     embed.add_field(name="📈 If you improve...", value=(
         f"+50 Strength → **{fmt(sim_str)}** crit\n"
         f"+50 Crit Dmg → **{fmt(sim_cd)}** crit\n"
         f"+100 Wep Dmg → **{fmt(sim_wep)}** crit"
     ), inline=False)
- 
+
     tips = []
     if crit_chance < 80:
         tips.append(f"🎯 **Crit Chance** {crit_chance}% → need **80%** min. Use Itchy reforge or Crit potions.")
@@ -336,11 +336,11 @@ async def damage(
         tips.append(f"⚔ **Strength** {strength} → aim for **300+**. Fierce reforge, Strength potions.")
     if not tips:
         tips.append("✅ Stats look solid! Focus on better weapon damage and armor upgrades.")
- 
+
     embed.add_field(name="💡 Suggestions", value="\n\n".join(tips[:3]), inline=False)
     embed.set_footer(text="Dmg Bot • by VectorGOD19")
     await interaction.followup.send(embed=embed)
- 
+
 # ── /profile ───────────────────────────────────────────────────
 @tree.command(name="profile", description="View stats for a specific SkyBlock profile")
 @app_commands.describe(username="Minecraft username", profile="Profile name (e.g. Watermelon)")
@@ -350,17 +350,17 @@ async def profile_cmd(interaction: discord.Interaction, username: str, profile: 
     if err:
         await interaction.followup.send(f"❌ {err}", ephemeral=True)
         return
- 
+
     member, prof, all_profiles, ign, uuid = result
     s = parse_stats(member)
     sk = s["skills"]
- 
+
     embed = discord.Embed(
         title=f"🍉 {ign}'s {prof.get('cute_name','?')} Profile",
         color=BOT_COLOR
     )
     embed.set_thumbnail(url=f"https://mc-heads.net/avatar/{uuid}/64")
- 
+
     embed.add_field(name="📚 Skills", value=(
         f"⚔ Combat: **{sk['combat']}**\n"
         f"🌾 Farming: **{sk['farming']}**\n"
@@ -369,13 +369,13 @@ async def profile_cmd(interaction: discord.Interaction, username: str, profile: 
         f"🌲 Foraging: **{sk['foraging']}**\n"
         f"📖 Enchanting: **{sk['enchanting']}**"
     ), inline=True)
- 
+
     sl = s["slayers"]
     def slayer_fmt(xp):
         if xp >= 1_000_000: return f"{xp/1_000_000:.1f}M"
         if xp >= 1_000:     return f"{xp/1_000:.0f}K"
         return str(xp)
- 
+
     embed.add_field(name="⚔ Slayers", value=(
         f"🧟 Zombie: **{slayer_fmt(sl.get('zombie',0))}**\n"
         f"🕷 Spider: **{slayer_fmt(sl.get('spider',0))}**\n"
@@ -384,22 +384,19 @@ async def profile_cmd(interaction: discord.Interaction, username: str, profile: 
         f"🔥 Blaze: **{slayer_fmt(sl.get('blaze',0))}**\n"
         f"🧛 Vampire: **{slayer_fmt(sl.get('vampire',0))}**"
     ), inline=True)
- 
+
     embed.add_field(name="📊 Overview", value=(
         f"⚗ Skill Avg: **{s['skill_avg']}**\n"
         f"⚰ Catacombs: **{s['cata_level']}**\n"
         f"💰 Purse: **{fmt(s['purse'])}**\n"
         f"🏦 Bank: **{fmt(s['bank'])}**"
     ), inline=True)
- 
+
     embed.set_footer(text="Dmg Bot • by VectorGOD19")
     await interaction.followup.send(embed=embed)
- 
- 
- 
-# ── /rawstats — debug command ──────────────────────────────────
-@tree.command(name="rawstats", description="Show all raw combat stats from the API")
- 
+
+
+
 # ── /rawstats — debug command ──────────────────────────────────
 @tree.command(name="rawstats", description="Show all raw combat stats from the API")
 @app_commands.describe(username="Minecraft username", profile="Profile name (optional)")
@@ -426,11 +423,10 @@ async def rawstats(interaction: discord.Interaction, username: str, profile: str
     chunks = [full[i:i+1900] for i in range(0, len(full), 1900)]
     for chunk in chunks:
         await interaction.followup.send(chunk)
- 
+
 # ── Run ────────────────────────────────────────────────────────
 token = os.environ.get("DISCORD_TOKEN")
 if not token:
     print("❌ DISCORD_TOKEN not set!")
 else:
     client.run(token)
- 
