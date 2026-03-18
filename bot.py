@@ -174,7 +174,7 @@ def parse_stats(member: dict):
 # ── /ping ──────────────────────────────────────────────────────
 @tree.command(name="ping", description="Test if the bot is working")
 async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message("✅ Bot is alive!")
+    await interaction.response.send_message("✅ Bot is working!")
  
 # ── /info ──────────────────────────────────────────────────────
 @tree.command(name="info", description="About this bot")
