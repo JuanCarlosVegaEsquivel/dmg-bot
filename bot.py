@@ -168,13 +168,15 @@ def parse_stats(member: dict):
         "slayers":    slayer_info,
         "cata_level": cata_level,
         "cata_xp":    cata_xp,
+        "purse":      purse,
+        "bank":       bank,
         "raw_stats":  raw_stats,
     }
  
 # ── /ping ──────────────────────────────────────────────────────
 @tree.command(name="ping", description="Test if the bot is working")
 async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message("✅ Bot is working!")
+    await interaction.response.send_message("✅ Bot is alive!")
  
 # ── /info ──────────────────────────────────────────────────────
 @tree.command(name="info", description="About this bot")
@@ -235,11 +237,12 @@ async def stats(interaction: discord.Interaction, username: str, profile: str = 
         return str(xp)
  
     embed.add_field(name="⚔ Slayers (XP)", value=(
-        f"🧟 Revenant: **{slayer_fmt(sl.get('zombie',0))}**\n"
-        f"🕷 Tarantula: **{slayer_fmt(sl.get('spider',0))}**\n"
+        f"🧟 Zombie: **{slayer_fmt(sl.get('zombie',0))}**\n"
+        f"🕷 Spider: **{slayer_fmt(sl.get('spider',0))}**\n"
         f"🐺 Wolf: **{slayer_fmt(sl.get('wolf',0))}**\n"
         f"🌀 Enderman: **{slayer_fmt(sl.get('enderman',0))}**\n"
         f"🔥 Blaze: **{slayer_fmt(sl.get('blaze',0))}**\n"
+        f"🧛 Vampire: **{slayer_fmt(sl.get('vampire',0))}**"
     ), inline=True)
  
     # Overview
@@ -385,171 +388,44 @@ async def profile_cmd(interaction: discord.Interaction, username: str, profile: 
     embed.add_field(name="📊 Overview", value=(
         f"⚗ Skill Avg: **{s['skill_avg']}**\n"
         f"⚰ Catacombs: **{s['cata_level']}**\n"
+        f"💰 Purse: **{fmt(s['purse'])}**\n"
+        f"🏦 Bank: **{fmt(s['bank'])}**"
     ), inline=True)
  
     embed.set_footer(text="Dmg Bot • by VectorGOD19")
     await interaction.followup.send(embed=embed)
  
-# ── Run ────────────────────────────────────────────────────────
  
  
+# ── /rawstats — debug command ──────────────────────────────────
+@tree.command(name="rawstats", description="Show all raw combat stats from the API")
  
-# ── Boss Data ──────────────────────────────────────────────────
-BOSS_DATA = {
-    # ── Slayers ────────────────────────────────────────────────
-    "revenant_t1":  {"name":"🧟 Revenant T1",  "hp":500,        "defense":0,   "type":"Zombie Slayer",   "notes":"Easy intro boss. Any gear works."},
-    "revenant_t2":  {"name":"🧟 Revenant T2",  "hp":20_000,     "defense":0,   "type":"Zombie Slayer",   "notes":"Pestilence debuff reduces your defense -25%. Kill fast."},
-    "revenant_t3":  {"name":"🧟 Revenant T3",  "hp":400_000,    "defense":0,   "type":"Zombie Slayer",   "notes":"Pestilence + Explosive Assault. Need at least 900 HP + 400 DEF."},
-    "revenant_t4":  {"name":"🧟 Revenant T4",  "hp":1_500_000,  "defense":0,   "type":"Zombie Slayer",   "notes":"1000 DPS from boss. Need Rev Armor + Reaper Falchion. 800+ DEF recommended."},
-    "revenant_t5":  {"name":"🧟 Revenant T5",  "hp":10_000_000, "defense":0,   "type":"Zombie Slayer",   "notes":"Immune to ability damage, arrows and AotD. Explosive TNT attack + Thermonuclear nuke every 30s. Reaper Falchion required. Melee only."},
- 
-    "tarantula_t1": {"name":"🕷 Tarantula T1",  "hp":750,        "defense":0,   "type":"Spider Slayer",   "notes":"Simple boss. Spider Hat + any decent weapon."},
-    "tarantula_t2": {"name":"🕷 Tarantula T2",  "hp":30_000,     "defense":0,   "type":"Spider Slayer",   "notes":"Spider Hat + Strong Armor + AOTE works well."},
-    "tarantula_t3": {"name":"🕷 Tarantula T3",  "hp":144_000,    "defense":0,   "type":"Spider Slayer",   "notes":"Stand under a roof to prevent boss from jumping behind you. Tarantula Armor + Livid Dagger."},
-    "tarantula_t4": {"name":"🕷 Tarantula T4",  "hp":576_000,    "defense":0,   "type":"Spider Slayer",   "notes":"Fast and deadly. Tarantula Armor (2k kills) + Recluse Fang. Avoid cobwebs. ~300 MP."},
-    "tarantula_t5": {"name":"🕷 Tarantula T5",  "hp":10_000_000,  "defense":0,   "type":"Spider Slayer",   "notes":"Immune to ability damage, bats deal a lot of dmg, bring sustaine and Primordial armor with lots of kills"},
- 
-    "sven_t1":      {"name":"🐺 Sven T1",       "hp":2_000,      "defense":0,   "type":"Wolf Slayer",     "notes":"Fight in water — prevents slam attacks. No True Damage yet."},
-    "sven_t2":      {"name":"🐺 Sven T2",        "hp":40_000,     "defense":0,   "type":"Wolf Slayer",     "notes":"True Damage starts here. 500 DEF minimum. Let it hit you or it regens."},
-    "sven_t3":      {"name":"🐺 Sven T3",        "hp":750_000,    "defense":0,   "type":"Wolf Slayer",     "notes":"Protected phase: pups guard the boss. Fight in water — pups drown. Let it hit you every 15s."},
-    "sven_t4":      {"name":"🐺 Sven T4",        "hp":2_000_000,  "defense":0,   "type":"Wolf Slayer",     "notes":"Mastiff Armor is a must. High True Damage. Crit Damage halved. Bloody/Itchy ~325 MP. Sorrow armor is pretty good."},
- 
-    "voidgloom_t1": {"name":"🌀 Voidgloom T1",  "hp":300_000,    "defense":300, "type":"Enderman Slayer", "notes":"Not a pushover. Hitshield at 100%/66%/33% HP slows fight. SA Armor + AOTD minimum."},
-    "voidgloom_t2": {"name":"🌀 Voidgloom T2",  "hp":1_000_000,  "defense":500, "type":"Enderman Slayer", "notes":"Massive step up. 3/4 Shadow Assassin + Crystallized Heart minimum. ~200 MP."},
-    "voidgloom_t3": {"name":"🌀 Voidgloom T3",  "hp":2_500_000,  "defense":750, "type":"Enderman Slayer", "notes":"Necromancy Souls required unless maxed skills. Atomsplit Katana + Final Destination Armor."},
-    "voidgloom_t4": {"name":"🌀 Voidgloom T4",  "hp":6_000_000,  "defense":1000,"type":"Enderman Slayer", "notes":"Invulnerability beams + Hitshield. FD Armor 25k kills + Soul Whip + Wither Cloak Sword."},
- 
-    "inferno_t1":   {"name":"🔥 Inferno T1",    "hp":500_000,    "defense":100, "type":"Blaze Slayer",    "notes":"Requires True Defense. Stay in green circle during Mania. Frozen Blaze or Crimson Armor."},
-    "inferno_t2":   {"name":"🔥 Inferno T2",    "hp":2_000_000,  "defense":300, "type":"Blaze Slayer",    "notes":"Twinclaws attack is lethal — use Holy Ice when you hear the sound cue."},
-    "inferno_t3":   {"name":"🔥 Inferno T3",    "hp":5_000_000,  "defense":500, "type":"Blaze Slayer",    "notes":"Laser beams deal 75% max HP True Damage. Fire Pits at low HP. 3/4 Frozen Blaze or Crimson."},
-    "inferno_t4":   {"name":"🔥 Inferno T4",    "hp":12_000_000, "defense":750, "type":"Blaze Slayer",    "notes":"Endgame only. Kindlebane + Mawdredge T2 daggers required, get T3 daggers when you can. High True Defense essential."},
- 
-    "vampire_t1":   {"name":"🧛 Vampire T1",    "hp":1_000_000,  "defense":200, "type":"Vampire Slayer (Rift)", "notes":"Rift dimension — most normal items don't work. Activate effigies before starting for Rift Damage boost."},
-    "vampire_t2":   {"name":"🧛 Vampire T2",    "hp":2_500_000,  "defense":400, "type":"Vampire Slayer (Rift)", "notes":"Twinclaws attack. Use Holy Ice when you hear the sound cue."},
-    "vampire_t3":   {"name":"🧛 Vampire T3",    "hp":5_000_000,  "defense":600, "type":"Vampire Slayer (Rift)", "notes":"High Rift Damage needed. Skill-based fight."},
-    "vampire_t4":   {"name":"🧛 Vampire T4",    "hp":10_000_000, "defense":800, "type":"Vampire Slayer (Rift)", "notes":"Endgame Rift. Best Rift gear required."},
-    "vampire_t5":   {"name":"🧛 Vampire T5",    "hp":20_000_000, "defense":1000,"type":"Vampire Slayer (Rift)", "notes":"Extremely difficult. Top-tier Rift gear only."},
- 
-    # ── Kuudra ─────────────────────────────────────────────────
-    "kuudra_basic":    {"name":"🦑 Kuudra Basic",    "hp":5_000_000,  "defense":200, "type":"Kuudra",  "notes":"Req: Combat 22. One role: Specialist. Orbs deal good damage. Necron/Storm/Terror Armor."},
-    "kuudra_hot":      {"name":"🦑 Kuudra Hot",      "hp":15_000_000, "defense":400, "type":"Kuudra",  "notes":"Req: Combat 27 + 1000 rep. Ballista required for final blow. Mobs have more HP."},
-    "kuudra_burning":  {"name":"🦑 Kuudra Burning",  "hp":30_000_000, "defense":600, "type":"Kuudra",  "notes":"Req: Combat 32 + 3000 rep. Must STUN before shooting. RCM setup required. DPS + Stunner roles."},
-    "kuudra_fiery":    {"name":"🦑 Kuudra Fiery",    "hp":60_000_000, "defense":800, "type":"Kuudra",  "notes":"Req: Combat 37 + 7000 rep. Strong mob spawns. Terror Armor + Terminator + 100% Attack Speed."},
-    "kuudra_infernal": {"name":"🦑 Kuudra Infernal", "hp":100_000_000,"defense":1000,"type":"Kuudra",  "notes":"Req: Combat 42 + 12000 rep. Final phase in Kuudra's Lair. Duplex Terminator + Precursor Eye. Best loot in game."},
- 
-    # ── Dungeons ───────────────────────────────────────────────
-    "cata_f1": {"name":"⚰ The Bonzo (F1)",        "hp":500_000,    "defense":100, "type":"Catacombs Floor 1", "notes":"Intro dungeon. Almost any gear works."},
-    "cata_f2": {"name":"⚰ The Scarf (F2)",         "hp":1_000_000,  "defense":200, "type":"Catacombs Floor 2", "notes":"Soul summons. Need decent damage to clear adds."},
-    "cata_f3": {"name":"⚰ The Professor (F3)",     "hp":2_000_000,  "defense":300, "type":"Catacombs Floor 3", "notes":"Three phases. Guardian spawns at each phase."},
-    "cata_f4": {"name":"⚰ Thorn (F4)",             "hp":4_000_000,  "defense":400, "type":"Catacombs Floor 4", "notes":"Spirit Bow phase. Must craft bow mid-fight."},
-    "cata_f5": {"name":"⚰ Livid (F5)",             "hp":6_000_000,  "defense":500, "type":"Catacombs Floor 5", "notes":"Multiple Livid clones. Must find and kill real one."},
-    "cata_f6": {"name":"⚰ Sadan (F6)",             "hp":10_000_000, "defense":600, "type":"Catacombs Floor 6", "notes":"Giant phase. Requires high damage to stagger."},
-    "cata_f7": {"name":"⚰ Necron (F7)",            "hp":20_000_000, "defense":750, "type":"Catacombs Floor 7", "notes":"5 phases including Maxor, Storm, Goldor, Necron, Wither King. Best dungeon loot."},
-    "cata_m3": {"name":"⚰ The Professor (M3)",     "hp":8_000_000,  "defense":600, "type":"Master Catacombs",  "notes":"Master mode. Significantly harder. Endgame gear required."},
-    "cata_m6": {"name":"⚰ Sadan (M6)",             "hp":30_000_000, "defense":900, "type":"Master Catacombs",  "notes":"Master mode. True endgame content."},
-    "cata_m7": {"name":"⚰ Necron (M7)",            "hp":60_000_000, "defense":1000,"type":"Master Catacombs",  "notes":"Hardest dungeon. Wither King has massive HP. Top-tier gear only."},
-}
- 
-# Group options for the dropdown
-BOSS_CATEGORIES = {
-    "🧟 Zombie Slayer":       ["revenant_t1","revenant_t2","revenant_t3","revenant_t4","revenant_t5"],
-    "🕷 Spider Slayer":        ["tarantula_t1","tarantula_t2","tarantula_t3","tarantula_t4"],
-    "🐺 Wolf Slayer":          ["sven_t1","sven_t2","sven_t3","sven_t4"],
-    "🌀 Enderman Slayer":      ["voidgloom_t1","voidgloom_t2","voidgloom_t3","voidgloom_t4"],
-    "🔥 Blaze Slayer":         ["inferno_t1","inferno_t2","inferno_t3","inferno_t4"],
-    "🧛 Vampire Slayer":       ["vampire_t1","vampire_t2","vampire_t3","vampire_t4","vampire_t5"],
-    "🦑 Kuudra":               ["kuudra_basic","kuudra_hot","kuudra_burning","kuudra_fiery","kuudra_infernal"],
-    "⚰ Dungeons":             ["cata_f1","cata_f2","cata_f3","cata_f4","cata_f5","cata_f6","cata_f7","cata_m3","cata_m6","cata_m7"],
-}
- 
-def boss_embed(boss_key: str, strength=0, crit_damage=50, weapon_dmg=100) -> discord.Embed:
-    b = BOSS_DATA[boss_key]
-    base_dmg, crit_dmg = calc_damage(strength, crit_damage, weapon_dmg)
- 
-    # How many hits to kill
-    effective_hp = b["hp"] * (1 + b["defense"] / 100)
-    hits_normal  = max(1, int(effective_hp / base_dmg)) if base_dmg > 0 else 999
-    hits_crit    = max(1, int(effective_hp / crit_dmg))  if crit_dmg > 0 else 999
- 
-    embed = discord.Embed(
-        title=b["name"],
-        description=f"**Type:** {b['type']}",
-        color=BOT_COLOR
-    )
- 
-    embed.add_field(name="📊 Boss Stats", value=(
-        f"❤ HP: **{fmt(b['hp'])}**\n"
-        f"🛡 Defense: **{b['defense']}**\n"
-        f"🛡 Effective HP: **{fmt(effective_hp)}**"
-    ), inline=True)
- 
-    embed.add_field(name="💥 Your Damage vs This Boss", value=(
-        f"Normal hit: **{fmt(base_dmg)}**\n"
-        f"Crit hit: **{fmt(crit_dmg)}**\n"
-        f"Hits to kill: ~**{fmt(hits_crit)}** crits"
-    ), inline=True)
- 
-    embed.add_field(name="💡 Tips", value=b["notes"], inline=False)
- 
-    # Damage formula explanation
-    embed.add_field(name="📐 Damage Formula", value=(
-        "```\n"
-        "Base = (5 + Weapon DMG) × (1 + Strength/100)\n"
-        "Crit = Base × (1 + Crit DMG/100)\n"
-        "Eff. HP = Boss HP × (1 + Defense/100)\n"
-        "```"
-    ), inline=False)
- 
-    embed.set_footer(text="Dmg Bot • by VectorGOD19 | Use /bosses with your stats for accurate results")
-    return embed
- 
- 
-# ── /bosses command ────────────────────────────────────────────
- 
-async def boss_autocomplete(interaction: discord.Interaction, current: str):
-    all_bosses = [
-        (k, BOSS_DATA[k]["name"]) for k in BOSS_DATA
-    ]
-    current_lower = current.lower()
-    matches = [
-        app_commands.Choice(name=name, value=key)
-        for key, name in all_bosses
-        if current_lower in name.lower() or current_lower in key.lower()
-    ]
-    return matches[:25]
- 
- 
-@tree.command(name="bosses", description="Calculate your damage against any boss")
-@app_commands.describe(
-    boss="Type the boss name (e.g. Voidgloom T4, Kuudra Infernal)",
-    strength="Your total Strength stat",
-    crit_damage="Your Crit Damage %",
-    weapon_damage="Your weapon damage stat (default 100)"
-)
-@app_commands.autocomplete(boss=boss_autocomplete)
-async def bosses(
-    interaction: discord.Interaction,
-    boss: str,
-    strength: int = 0,
-    crit_damage: int = 50,
-    weapon_damage: int = 100
-):
-    if boss not in BOSS_DATA:
-        # Try fuzzy match
-        boss_lower = boss.lower()
-        match = next((k for k in BOSS_DATA if boss_lower in k.lower() or boss_lower in BOSS_DATA[k]["name"].lower()), None)
-        if not match:
-            names = ", ".join(BOSS_DATA[k]["name"] for k in list(BOSS_DATA.keys())[:10])
-            await interaction.response.send_message(
-                f"❌ Boss **{boss}** not found. Try typing the name and selecting from the autocomplete list.\nExamples: {names}",
-                ephemeral=True
-            )
-            return
-        boss = match
- 
-    embed = boss_embed(boss, strength, crit_damage, weapon_damage)
-    await interaction.response.send_message(embed=embed)
- 
+# ── /rawstats — debug command ──────────────────────────────────
+@tree.command(name="rawstats", description="Show all raw combat stats from the API")
+@app_commands.describe(username="Minecraft username", profile="Profile name (optional)")
+async def rawstats(interaction: discord.Interaction, username: str, profile: str = None):
+    await interaction.response.defer()
+    result, err = await fetch(username, profile)
+    if err:
+        await interaction.followup.send("❌ " + err, ephemeral=True)
+        return
+    member, prof, all_profiles, ign, uuid = result
+    top_keys = list(member.keys())
+    msg1 = "**Top-level keys:** " + ", ".join(top_keys)
+    locations = {
+        "member.stats":        member.get("stats", {}),
+        "member.player_stats": member.get("player_stats", {}),
+        "member.player_data":  member.get("player_data", {}),
+    }
+    parts = [msg1]
+    for name, data in locations.items():
+        if data and isinstance(data, dict):
+            preview = str(dict(list(data.items())[:10]))[:500]
+            parts.append("**" + name + ":**" + chr(10) + "```" + preview + "```")
+    full = chr(10).join(parts)
+    chunks = [full[i:i+1900] for i in range(0, len(full), 1900)]
+    for chunk in chunks:
+        await interaction.followup.send(chunk)
  
 # ── Run ────────────────────────────────────────────────────────
 token = os.environ.get("DISCORD_TOKEN")
