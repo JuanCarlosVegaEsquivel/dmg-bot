@@ -540,7 +540,7 @@ async def profile_cmd(interaction: discord.Interaction, username: str, profile: 
 
 
 # ── /rawstats — debug command ──────────────────────────────────
-@tree.command(name="rawstats", description="Show raw parsed item data")
+@tree.command(name="rawstats", description="Show raw NBT structure")
 @app_commands.describe(username="Minecraft username", profile="Profile name (optional)")
 async def rawstats(interaction: discord.Interaction, username: str, profile: str = None):
     await interaction.response.defer()
@@ -552,16 +552,31 @@ async def rawstats(interaction: discord.Interaction, username: str, profile: str
 
     inv = member.get("inventory", {})
     armor_b64 = inv.get("inv_armor", {}).get("data", "")
-    items = decode_inventory(armor_b64)
 
-    parts = ["**Raw parsed armor items (" + str(len(items)) + " items):**"]
-    for i, item in enumerate(items):
-        parts.append("**Slot " + str(i) + ":** ```" + json.dumps(item, indent=2)[:600] + "```")
+    try:
+        raw  = base64.b64decode(armor_b64)
+        raw  = gzip.decompress(raw)
+        nbt_file = nbtlib.NBTFile(fileobj=io.BytesIO(raw))
 
-    full = chr(10).join(parts)
-    chunks = [full[i:i+1900] for i in range(0, len(full), 1900)]
-    for chunk in chunks:
-        await interaction.followup.send(chunk)
+        def tag_to_py(tag):
+            name = type(tag).__name__
+            if hasattr(tag, "tags"):
+                return {"_type": name, "tags": {t.name: tag_to_py(t) for t in tag.tags}}
+            elif hasattr(tag, "value"):
+                v = tag.value
+                if isinstance(v, list):
+                    return {"_type": name, "value": [tag_to_py(i) for i in v]}
+                return {"_type": name, "value": v}
+            return str(tag)
+
+        parsed = tag_to_py(nbt_file)
+        dump = json.dumps(parsed, indent=2)[:3500]
+        chunks = [dump[i:i+1900] for i in range(0, len(dump), 1900)]
+        await interaction.followup.send("**Raw NBT structure:**")
+        for chunk in chunks:
+            await interaction.followup.send("```" + chunk + "```")
+    except Exception as e:
+        await interaction.followup.send("❌ Error: " + str(e))
 
 
 # ── /neutest — verify NEU data loaded ─────────────────────────
