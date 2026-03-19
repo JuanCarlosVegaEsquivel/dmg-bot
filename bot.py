@@ -25,9 +25,10 @@ NEU_DATA = {}  # loaded on startup
 def decode_inventory(b64_data: str) -> list:
     """Decode a Hypixel base64+gzip+NBT inventory into a list of item dicts."""
     try:
-        # Clean the string — remove newlines and spaces
-        clean = b64_data.replace("\n", "").replace(" ", "").strip()
-        raw   = base64.b64decode(clean)
+        # Clean the string — remove ALL whitespace characters
+        import re
+        clean = re.sub(r"\s+", "", b64_data)
+        raw   = base64.b64decode(clean + "==")  # add padding just in case
         raw   = gzip.decompress(raw)
         nbt_file = nbtlib.NBTFile(fileobj=io.BytesIO(raw))
 
@@ -55,6 +56,14 @@ def decode_inventory(b64_data: str) -> list:
         return [i for i in items_raw if i and isinstance(i, dict) and i.get("id")]
     except Exception as e:
         print(f"NBT decode error: {e}")
+        print(f"b64 length: {len(b64_data)}, first 50 chars: {repr(b64_data[:50])}")
+        try:
+            import re
+            clean = re.sub(r"\s+", "", b64_data)
+            raw   = base64.b64decode(clean + "==")
+            print(f"Decoded bytes first 4: {raw[:4].hex()}")
+        except Exception as e2:
+            print(f"Debug decode error: {e2}")
         return []
 
 def get_item_stats(item: dict, reforges: dict) -> dict:
