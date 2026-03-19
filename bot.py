@@ -25,14 +25,16 @@ NEU_DATA = {}  # loaded on startup
 def decode_inventory(b64_data: str) -> list:
     """Decode a Hypixel base64+gzip+NBT inventory into a list of item dicts."""
     try:
-        raw  = base64.b64decode(b64_data)
-        raw  = gzip.decompress(raw)
+        # Clean the string — remove newlines and spaces
+        clean = b64_data.replace("\n", "").replace(" ", "").strip()
+        raw   = base64.b64decode(clean)
+        raw   = gzip.decompress(raw)
         nbt_file = nbtlib.NBTFile(fileobj=io.BytesIO(raw))
 
         def tag_to_py(tag):
-            if hasattr(tag, 'tags'):
+            if hasattr(tag, "tags"):
                 return {t.name: tag_to_py(t) for t in tag.tags}
-            elif hasattr(tag, 'value'):
+            elif hasattr(tag, "value"):
                 v = tag.value
                 if isinstance(v, list):
                     return [tag_to_py(i) for i in v]
@@ -40,13 +42,17 @@ def decode_inventory(b64_data: str) -> list:
             return None
 
         parsed = tag_to_py(nbt_file)
-        items_raw = parsed.get("i", {})
-        # items_raw is a dict with one key "" containing a list or dict
+
+        # The items are under key "i" as a list
+        items_raw = parsed.get("i", [])
         if isinstance(items_raw, dict):
+            # Sometimes it's a dict with empty string key
             items_raw = list(items_raw.values())
-        if isinstance(items_raw, dict):
-            items_raw = [items_raw]
-        return [i for i in items_raw if i and i.get("id")]
+            if len(items_raw) == 1 and isinstance(items_raw[0], list):
+                items_raw = items_raw[0]
+
+        print(f"Decoded {len(items_raw)} items from inventory")
+        return [i for i in items_raw if i and isinstance(i, dict) and i.get("id")]
     except Exception as e:
         print(f"NBT decode error: {e}")
         return []
@@ -540,7 +546,7 @@ async def profile_cmd(interaction: discord.Interaction, username: str, profile: 
 
 
 # ── /rawstats — debug command ──────────────────────────────────
-@tree.command(name="rawstats", description="Show raw item structure from API")
+@tree.command(name="rawstats", description="Show parsed armor items")
 @app_commands.describe(username="Minecraft username", profile="Profile name (optional)")
 async def rawstats(interaction: discord.Interaction, username: str, profile: str = None):
     await interaction.response.defer()
@@ -550,15 +556,26 @@ async def rawstats(interaction: discord.Interaction, username: str, profile: str
         return
     member, prof, all_profiles, ign, uuid = result
 
-    inv = member.get("inventory", {})
-    armor_raw = inv.get("inv_armor", {})
+    inv   = member.get("inventory", {})
+    b64   = inv.get("inv_armor", {}).get("data", "")
+    items = decode_inventory(b64)
 
-    # Dump the raw structure - type and first 1000 chars
-    msg = "**inv_armor type:** " + str(type(armor_raw)) + chr(10)
-    msg += "**inv_armor keys:** " + str(list(armor_raw.keys()) if isinstance(armor_raw, dict) else "not a dict") + chr(10)
-    msg += "**inv_armor raw (first 800):**" + chr(10) + "```" + str(armor_raw)[:800] + "```"
+    if not items:
+        await interaction.followup.send("❌ Could not parse armor items. Check logs.")
+        return
 
-    await interaction.followup.send(msg)
+    parts = ["**Parsed " + str(len(items)) + " armor items:**"]
+    for i, item in enumerate(items):
+        tag      = item.get("tag", {})
+        extra    = tag.get("ExtraAttributes", {})
+        reforge  = extra.get("modifier", "none")
+        sky_id   = extra.get("id", item.get("id", "?"))
+        parts.append("Slot " + str(i) + ": **" + sky_id + "** | reforge: " + reforge + chr(10) + "```" + json.dumps(tag, indent=2)[:400] + "```")
+
+    full = chr(10).join(parts)
+    chunks = [full[i:i+1900] for i in range(0, len(full), 1900)]
+    for chunk in chunks:
+        await interaction.followup.send(chunk)
 
 
 # ── /neutest — verify NEU data loaded ─────────────────────────
