@@ -5,6 +5,9 @@ import os
 import json
 import zipfile
 import io
+import base64
+import gzip
+from nbt import nbt as nbtlib
  
 # ── Setup ──────────────────────────────────────────────────────
 intents = discord.Intents.default()
@@ -17,6 +20,108 @@ BOT_COLOR    = 0xe84040
  
 # ── Ready ──────────────────────────────────────────────────────
 NEU_DATA = {}  # loaded on startup
+ 
+# ── NBT Parser ─────────────────────────────────────────────────
+def decode_inventory(b64_data: str) -> list:
+    """Decode a Hypixel base64+gzip+NBT inventory into a list of item dicts."""
+    try:
+        raw  = base64.b64decode(b64_data)
+        raw  = gzip.decompress(raw)
+        nbt_file = nbtlib.NBTFile(fileobj=io.BytesIO(raw))
+ 
+        def tag_to_py(tag):
+            if hasattr(tag, 'tags'):
+                return {t.name: tag_to_py(t) for t in tag.tags}
+            elif hasattr(tag, 'value'):
+                v = tag.value
+                if isinstance(v, list):
+                    return [tag_to_py(i) for i in v]
+                return v
+            return None
+ 
+        parsed = tag_to_py(nbt_file)
+        items_raw = parsed.get("i", {})
+        # items_raw is a dict with one key "" containing a list or dict
+        if isinstance(items_raw, dict):
+            items_raw = list(items_raw.values())
+        if isinstance(items_raw, dict):
+            items_raw = [items_raw]
+        return [i for i in items_raw if i and i.get("id")]
+    except Exception as e:
+        print(f"NBT decode error: {e}")
+        return []
+ 
+def get_item_stats(item: dict, reforges: dict) -> dict:
+    """Extract stats from a single item including reforge bonuses."""
+    stats = {}
+    tag = item.get("tag", {})
+    extra = tag.get("ExtraAttributes", {})
+    
+    # Base stats from item (stored in display/lore usually)
+    # Hypixel stores reforge in ExtraAttributes
+    reforge_name = extra.get("modifier", "")
+    rarity = item.get("tag", {}).get("display", {}).get("color", "")
+    
+    # Get rarity from item ID prefix or NBT
+    skyblock_id = extra.get("id", "")
+    
+    # Apply reforge stats
+    if reforge_name and reforges:
+        # Find reforge (case insensitive)
+        ref_key = next((k for k in reforges if k.lower() == reforge_name.lower()), None)
+        if ref_key:
+            ref_data = reforges[ref_key]
+            # Determine item rarity
+            item_rarity = extra.get("tier", "RARE")
+            ref_stats = ref_data.get("reforgeStats", {}).get(item_rarity, {})
+            for stat, val in ref_stats.items():
+                stats[stat] = stats.get(stat, 0) + val
+ 
+    return stats, skyblock_id, reforge_name
+ 
+# ── Combat Stat Calculator ─────────────────────────────────────
+SKILL_STRENGTH_BONUS = {
+    # Combat skill gives +4 Strength per level (simplified)
+    # Full table would be more accurate but this is close
+}
+ 
+def calculate_combat_stats(member: dict, reforges: dict) -> dict:
+    """Calculate total combat stats from armor, equipment and skills."""
+    total = {
+        "strength": 0, "crit_chance": 30, "crit_damage": 50,
+        "health": 100, "defense": 0, "speed": 100,
+        "attack_speed": 0, "ferocity": 0, "intelligence": 0,
+        "true_defense": 0, "vitality": 0,
+    }
+ 
+    inv = member.get("inventory", {})
+ 
+    # Slots to parse: armor + equipment
+    slots = [
+        inv.get("inv_armor", {}),
+        inv.get("equipment_contents", {}),
+    ]
+ 
+    for slot in slots:
+        b64 = slot.get("data", "")
+        if not b64:
+            continue
+        items = decode_inventory(b64)
+        for item in items:
+            item_stats, sky_id, reforge = get_item_stats(item, reforges)
+            for stat, val in item_stats.items():
+                if stat in total:
+                    total[stat] += val
+ 
+    # Skill bonuses (Combat skill = +4 STR per level, Enchanting = +1 INT per level)
+    exp = member.get("player_data", {}).get("experience", {})
+    combat_lvl    = xp_to_level(exp.get("SKILL_COMBAT", 0))
+    enchanting_lvl = xp_to_level(exp.get("SKILL_ENCHANTING", 0))
+    total["strength"]     += combat_lvl * 4
+    total["crit_chance"]  += combat_lvl * 0.5
+    total["intelligence"] += enchanting_lvl * 1
+ 
+    return total
  
 async def load_neu_data():
     """Download NEU repo constants (reforges, etc) on startup."""
@@ -435,7 +540,7 @@ async def profile_cmd(interaction: discord.Interaction, username: str, profile: 
  
  
 # ── /rawstats — debug command ──────────────────────────────────
-@tree.command(name="rawstats", description="Show raw inventory data from the API")
+@tree.command(name="rawstats", description="Show calculated combat stats from armor+skills")
 @app_commands.describe(username="Minecraft username", profile="Profile name (optional)")
 async def rawstats(interaction: discord.Interaction, username: str, profile: str = None):
     await interaction.response.defer()
@@ -445,26 +550,14 @@ async def rawstats(interaction: discord.Interaction, username: str, profile: str
         return
     member, prof, all_profiles, ign, uuid = result
  
-    inv = member.get("inventory", {})
-    inv_keys = list(inv.keys()) if inv else []
+    reforges = NEU_DATA.get("constants", {}).get("reforges.json", {})
+    stats = calculate_combat_stats(member, reforges)
  
-    # Show armor data structure
-    armor = inv.get("inv_armor", {})
-    eq    = inv.get("equipment_contents", {})
-    bag   = member.get("accessory_bag_storage", {})
-    bag_keys = list(bag.keys()) if bag else []
+    lines = ["**Calculated Combat Stats for " + ign + ":**"]
+    for k, v in stats.items():
+        lines.append(k.replace("_", " ").title() + ": **" + str(round(v, 1)) + "**")
  
-    parts = [
-        "**inventory keys:** " + ", ".join(inv_keys),
-        "**accessory_bag keys:** " + ", ".join(bag_keys[:10]),
-        "**inv_armor sample:**" + chr(10) + "```" + str(armor)[:600] + "```",
-        "**equipment_contents sample:**" + chr(10) + "```" + str(eq)[:600] + "```",
-    ]
- 
-    full = chr(10).join(parts)
-    chunks = [full[i:i+1900] for i in range(0, len(full), 1900)]
-    for chunk in chunks:
-        await interaction.followup.send(chunk)
+    await interaction.followup.send(chr(10).join(lines))
  
  
 # ── /neutest — verify NEU data loaded ─────────────────────────
