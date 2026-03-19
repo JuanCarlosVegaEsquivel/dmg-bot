@@ -435,7 +435,7 @@ async def profile_cmd(interaction: discord.Interaction, username: str, profile: 
  
  
 # ── /rawstats — debug command ──────────────────────────────────
-@tree.command(name="rawstats", description="Show all raw combat stats from the API")
+@tree.command(name="rawstats", description="Show raw inventory data from the API")
 @app_commands.describe(username="Minecraft username", profile="Profile name (optional)")
 async def rawstats(interaction: discord.Interaction, username: str, profile: str = None):
     await interaction.response.defer()
@@ -444,18 +444,23 @@ async def rawstats(interaction: discord.Interaction, username: str, profile: str
         await interaction.followup.send("❌ " + err, ephemeral=True)
         return
     member, prof, all_profiles, ign, uuid = result
-    top_keys = list(member.keys())
-    msg1 = "**Top-level keys:** " + ", ".join(top_keys)
-    locations = {
-        "member.stats":        member.get("stats", {}),
-        "member.player_stats": member.get("player_stats", {}),
-        "member.player_data":  member.get("player_data", {}),
-    }
-    parts = [msg1]
-    for name, data in locations.items():
-        if data and isinstance(data, dict):
-            preview = str(dict(list(data.items())[:10]))[:500]
-            parts.append("**" + name + ":**" + chr(10) + "```" + preview + "```")
+ 
+    inv = member.get("inventory", {})
+    inv_keys = list(inv.keys()) if inv else []
+ 
+    # Show armor data structure
+    armor = inv.get("inv_armor", {})
+    eq    = inv.get("equipment_contents", {})
+    bag   = member.get("accessory_bag_storage", {})
+    bag_keys = list(bag.keys()) if bag else []
+ 
+    parts = [
+        "**inventory keys:** " + ", ".join(inv_keys),
+        "**accessory_bag keys:** " + ", ".join(bag_keys[:10]),
+        "**inv_armor sample:**" + chr(10) + "```" + str(armor)[:600] + "```",
+        "**equipment_contents sample:**" + chr(10) + "```" + str(eq)[:600] + "```",
+    ]
+ 
     full = chr(10).join(parts)
     chunks = [full[i:i+1900] for i in range(0, len(full), 1900)]
     for chunk in chunks:
