@@ -25,17 +25,10 @@ NEU_DATA = {}  # loaded on startup
 def decode_inventory(b64_data: str) -> list:
     """Decode a Hypixel base64+gzip+NBT inventory into a list of item dicts."""
     try:
-        import re
-        clean = re.sub(r"\s+", "", b64_data)
-        raw_b64 = base64.b64decode(clean + "==")
-        # 1f 8b = gzip magic bytes
-        if raw_b64[:2] == b"\x1f\x8b":
-            raw = gzip.decompress(raw_b64)
-        else:
-            # Try cleaning differently
-            clean2 = "".join(c for c in b64_data if c not in " \t\n\r\x0b\x0c")
-            raw_b64 = base64.b64decode(clean2 + "==")
-            raw = gzip.decompress(raw_b64)
+        # Strip ALL whitespace and decode
+        clean   = "".join(b64_data.split())
+        raw_b64 = base64.b64decode(clean)
+        raw     = gzip.decompress(raw_b64)
         nbt_file = nbtlib.NBTFile(fileobj=io.BytesIO(raw))
 
         def tag_to_py(tag):
