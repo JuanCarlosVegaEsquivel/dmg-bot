@@ -532,6 +532,14 @@ client.on("interactionCreate", async interaction => {
             const items = await decodeInventory(b64);
             if (!items.length) { await interaction.editReply("❌ NBT parse returned 0 items. Check logs."); return; }
 
+            // Also dump raw NBT of first item to find rarity field
+            const clean  = b64.replace(/\s+/g, "");
+            const buf    = Buffer.from(clean, "base64");
+            const gunzip = await new Promise((res, rej) => { zlib.gunzip(buf, (err, r) => err ? rej(err) : res(r)); });
+            const { parsed } = await nbt.parse(gunzip);
+            const rawItems = parsed?.value?.i?.value?.value || [];
+            const firstRaw = rawItems[0] ? JSON.stringify(rawItems[0], null, 2).slice(0, 1500) : "empty";
+
             let msg = `**Parsed ${items.length} armor items for ${ign}:**\n`;
             for (const [i, item] of items.entries()) {
                 msg += `\n**Slot ${i}:** \`${item.skyId}\` | Reforge: \`${item.reforge || "none"}\` | Rarity: \`${item.rarity}\``;
@@ -539,6 +547,7 @@ client.on("interactionCreate", async interaction => {
                     msg += `\nEnchants: \`${item.enchants.map(e => e.name + ":" + e.level).join(", ")}\``;
                 }
             }
+            msg += `\n\n**Raw NBT slot 0 (first 1500 chars):**\n\`\`\`json\n${firstRaw}\n\`\`\``;
             const chunks = msg.match(/.{1,1900}/gs) || [msg];
             await interaction.editReply(chunks[0]);
             for (let i = 1; i < chunks.length; i++) await interaction.followUp(chunks[i]);
