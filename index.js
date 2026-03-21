@@ -89,6 +89,47 @@ async function fetchProfile(username, profileName = null) {
 }
 
 // ── NBT Parser ─────────────────────────────────────────────────
+// Strip Minecraft color codes (§x)
+function stripColor(s) { return s.replace(/§[0-9a-fk-or]/g, "").trim(); }
+
+// Parse stats from lore lines like "Health: +130", "Strength: +45"
+const LORE_STAT_MAP = {
+    "Health": "health", "Defense": "defense", "Strength": "strength",
+    "Intelligence": "intelligence", "Crit Chance": "crit_chance",
+    "Crit Damage": "crit_damage", "Bonus Attack Speed": "attack_speed",
+    "Ferocity": "ferocity", "Speed": "speed", "True Defense": "true_defense",
+    "Vitality": "vitality", "Magic Find": "magic_find",
+    "Farming Fortune": "farming_fortune", "Mining Fortune": "mining_fortune",
+};
+
+const RARITY_COLORS = { "§6": "LEGENDARY", "§d": "MYTHIC", "§5": "EPIC", "§9": "RARE", "§a": "UNCOMMON", "§f": "COMMON" };
+
+function parseRarityFromLore(loreLines) {
+    // Last non-empty line usually has the rarity e.g. "§6LEGENDARY HELMET"
+    for (let i = loreLines.length - 1; i >= 0; i--) {
+        const line = loreLines[i];
+        for (const [code, rarity] of Object.entries(RARITY_COLORS)) {
+            if (line.startsWith(code) && line.includes(rarity)) return rarity;
+        }
+    }
+    return "COMMON";
+}
+
+function parseStatsFromLore(loreLines) {
+    const stats = {};
+    for (const line of loreLines) {
+        const clean = stripColor(line);
+        for (const [label, key] of Object.entries(LORE_STAT_MAP)) {
+            // Match "Health: +130" or "Health: +130 (+20)"
+            const match = clean.match(new RegExp(label + ":\s*[+\-]?([\d,\.]+)"));
+            if (match) {
+                stats[key] = parseFloat(match[1].replace(",", ""));
+            }
+        }
+    }
+    return stats;
+}
+
 async function decodeInventory(b64) {
     try {
         const clean  = b64.replace(/\s+/g, "");
@@ -102,18 +143,23 @@ async function decodeInventory(b64) {
 
         return items.map(item => {
             if (!item || !item.id) return null;
-            const tag   = item.tag?.value || {};
-            const extra = tag.ExtraAttributes?.value || {};
+            const tag     = item.tag?.value || {};
+            const extra   = tag.ExtraAttributes?.value || {};
             const display = tag.display?.value || {};
+            const lore    = display.Lore?.value?.value || [];
+
+            const rarity  = parseRarityFromLore(lore);
+            const stats   = parseStatsFromLore(lore);
 
             return {
                 id:      item.id.value,
                 count:   item.Count?.value || 1,
                 skyId:   extra.id?.value || "",
                 reforge: extra.modifier?.value || "",
-                rarity:  extra.tier?.value || "COMMON",
+                rarity,
+                stats,
                 enchants: Object.entries(extra.enchantments?.value || {}).map(([k,v]) => ({ name: k, level: v.value })),
-                displayName: display.Name?.value || "",
+                displayName: stripColor(display.Name?.value || ""),
             };
         }).filter(Boolean);
     } catch (e) {
@@ -532,22 +578,17 @@ client.on("interactionCreate", async interaction => {
             const items = await decodeInventory(b64);
             if (!items.length) { await interaction.editReply("❌ NBT parse returned 0 items. Check logs."); return; }
 
-            // Also dump raw NBT of first item to find rarity field
-            const clean  = b64.replace(/\s+/g, "");
-            const buf    = Buffer.from(clean, "base64");
-            const gunzip = await new Promise((res, rej) => { zlib.gunzip(buf, (err, r) => err ? rej(err) : res(r)); });
-            const { parsed } = await nbt.parse(gunzip);
-            const rawItems = parsed?.value?.i?.value?.value || [];
-            const firstRaw = rawItems[0] ? JSON.stringify(rawItems[0], null, 2).slice(0, 1500) : "empty";
-
             let msg = `**Parsed ${items.length} armor items for ${ign}:**\n`;
             for (const [i, item] of items.entries()) {
                 msg += `\n**Slot ${i}:** \`${item.skyId}\` | Reforge: \`${item.reforge || "none"}\` | Rarity: \`${item.rarity}\``;
+                if (Object.keys(item.stats).length) {
+                    const statsStr = Object.entries(item.stats).map(([k,v]) => `${k}:${v}`).join(", ");
+                    msg += `\nStats: \`${statsStr}\``;
+                }
                 if (item.enchants.length) {
                     msg += `\nEnchants: \`${item.enchants.map(e => e.name + ":" + e.level).join(", ")}\``;
                 }
             }
-            msg += `\n\n**Raw NBT slot 0 (first 1500 chars):**\n\`\`\`json\n${firstRaw}\n\`\`\``;
             const chunks = msg.match(/.{1,1900}/gs) || [msg];
             await interaction.editReply(chunks[0]);
             for (let i = 1; i < chunks.length; i++) await interaction.followUp(chunks[i]);
