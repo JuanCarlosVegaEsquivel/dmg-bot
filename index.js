@@ -338,8 +338,8 @@ const commands = [
         .addStringOption(o => o.setName("profile").setDescription("Profile name (optional)")),
 
     new SlashCommandBuilder()
-        .setName("debuginv")
-        .setDescription("Debug: show parsed armor items and enchants")
+        .setName("rawstats")
+        .setDescription("Show parsed armor stats")
         .addStringOption(o => o.setName("username").setDescription("Minecraft username").setRequired(true)),
 
     new SlashCommandBuilder()
@@ -565,40 +565,48 @@ client.on("interactionCreate", async interaction => {
         }
 
 
-        // ── /debuginv ────────────────────────────────────────
-        else if (commandName === "debuginv") {
+        // ── /rawstats ─────────────────────────────────────────
+        else if (commandName === "rawstats") {
             await interaction.deferReply();
             const username = interaction.options.getString("username");
             const { member, ign } = await fetchProfile(username);
-            const inv  = member.inventory || {};
-            const b64  = inv.inv_armor?.data || "";
+            const inv = member.inventory || {};
+            const b64 = inv.inv_armor?.data || "";
 
             if (!b64) { await interaction.editReply("❌ No armor data found."); return; }
 
             const items = await decodeInventory(b64);
-            if (!items.length) { await interaction.editReply("❌ NBT parse returned 0 items. Check logs."); return; }
+            if (!items.length) { await interaction.editReply("❌ Could not parse armor. Check logs."); return; }
 
-            // Dump raw lore of slot 0 to debug stat parsing
-            const clean2 = b64.replace(/\s+/g, "");
-            const buf2   = Buffer.from(clean2, "base64");
-            const gz2    = await new Promise((res, rej) => { zlib.gunzip(buf2, (err, r) => err ? rej(err) : res(r)); });
-            const { parsed: p2 } = await nbt.parse(gz2);
-            const rawLore = p2?.value?.i?.value?.value?.[0]?.tag?.value?.display?.value?.Lore?.value?.value || [];
-            const loreClean = rawLore.map(l => stripColor(l)).join("\n");
+            // Slot order: 0=Boots, 1=Leggings, 2=Chestplate, 3=Helmet
+            const slotNames = ["Boots", "Leggings", "Chestplate", "Helmet"];
+            const displayOrder = [3, 2, 1, 0]; // Helmet first, Boots last
 
-            let msg = `**Parsed ${items.length} armor items for ${ign}:**\n`;
-            for (const [i, item] of items.entries()) {
-                msg += `\n**Slot ${i}:** \`${item.skyId}\` | Reforge: \`${item.reforge || "none"}\` | Rarity: \`${item.rarity}\``;
+            const embed = new EmbedBuilder()
+                .setTitle("🛡 " + ign + "'s Armor Stats")
+                .setColor(BOT_COLOR)
+                .setFooter({ text: "Dmg Bot • by VectorGOD19" });
+
+            for (const i of displayOrder) {
+                const item = items[i];
+                if (!item) continue;
+                const slotName = slotNames[i];
                 const statsStr = Object.keys(item.stats).length
-                    ? Object.entries(item.stats).map(([k,v]) => `${k}:${v}`).join(", ")
-                    : "none parsed";
-                msg += `\nStats: \`${statsStr}\``;
-                if (item.enchants.length) msg += `\nEnchants: \`${item.enchants.map(e => e.name+":"+e.level).join(", ")}\``;
+                    ? Object.entries(item.stats)
+                        .map(([k, v]) => {
+                            const icons = { health:"❤", defense:"🛡", strength:"⚔", crit_chance:"🎯", crit_damage:"💥", intelligence:"✨", speed:"🏃", attack_speed:"⚡", ferocity:"🔥", true_defense:"🛡", vitality:"💊", magic_find:"🍀", farming_fortune:"🌾", mining_fortune:"⛏" };
+                            return (icons[k] || "") + " " + k.replace(/_/g, " ") + ": **" + v + "**";
+                        }).join("\n")
+                    : "*No stats parsed*";
+
+                embed.addFields({
+                    name: slotName + " — " + item.skyId + " (" + item.rarity + ")",
+                    value: statsStr + "\nReforge: `" + (item.reforge || "none") + "`",
+                    inline: true
+                });
             }
-            msg += `\n\n**Slot 0 lore (color stripped):**\n\`\`\`\n${loreClean.slice(0, 800)}\n\`\`\``;
-            const chunks = msg.match(/.{1,1900}/gs) || [msg];
-            await interaction.editReply(chunks[0]);
-            for (let i = 1; i < chunks.length; i++) await interaction.followUp(chunks[i]);
+
+            await interaction.editReply({ embeds: [embed] });
         }
 
     } catch (err) {
