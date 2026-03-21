@@ -578,17 +578,24 @@ client.on("interactionCreate", async interaction => {
             const items = await decodeInventory(b64);
             if (!items.length) { await interaction.editReply("❌ NBT parse returned 0 items. Check logs."); return; }
 
+            // Dump raw lore of slot 0 to debug stat parsing
+            const clean2 = b64.replace(/\s+/g, "");
+            const buf2   = Buffer.from(clean2, "base64");
+            const gz2    = await new Promise((res, rej) => { zlib.gunzip(buf2, (err, r) => err ? rej(err) : res(r)); });
+            const { parsed: p2 } = await nbt.parse(gz2);
+            const rawLore = p2?.value?.i?.value?.value?.[0]?.tag?.value?.display?.value?.Lore?.value?.value || [];
+            const loreClean = rawLore.map(l => stripColor(l)).join("\n");
+
             let msg = `**Parsed ${items.length} armor items for ${ign}:**\n`;
             for (const [i, item] of items.entries()) {
                 msg += `\n**Slot ${i}:** \`${item.skyId}\` | Reforge: \`${item.reforge || "none"}\` | Rarity: \`${item.rarity}\``;
-                if (Object.keys(item.stats).length) {
-                    const statsStr = Object.entries(item.stats).map(([k,v]) => `${k}:${v}`).join(", ");
-                    msg += `\nStats: \`${statsStr}\``;
-                }
-                if (item.enchants.length) {
-                    msg += `\nEnchants: \`${item.enchants.map(e => e.name + ":" + e.level).join(", ")}\``;
-                }
+                const statsStr = Object.keys(item.stats).length
+                    ? Object.entries(item.stats).map(([k,v]) => `${k}:${v}`).join(", ")
+                    : "none parsed";
+                msg += `\nStats: \`${statsStr}\``;
+                if (item.enchants.length) msg += `\nEnchants: \`${item.enchants.map(e => e.name+":"+e.level).join(", ")}\``;
             }
+            msg += `\n\n**Slot 0 lore (color stripped):**\n\`\`\`\n${loreClean.slice(0, 800)}\n\`\`\``;
             const chunks = msg.match(/.{1,1900}/gs) || [msg];
             await interaction.editReply(chunks[0]);
             for (let i = 1; i < chunks.length; i++) await interaction.followUp(chunks[i]);
