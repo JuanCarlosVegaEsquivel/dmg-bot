@@ -338,6 +338,11 @@ const commands = [
         .addStringOption(o => o.setName("profile").setDescription("Profile name (optional)")),
 
     new SlashCommandBuilder()
+        .setName("loredump")
+        .setDescription("Debug lore bytes")
+        .addStringOption(o => o.setName("username").setDescription("Minecraft username").setRequired(true)),
+
+    new SlashCommandBuilder()
         .setName("rawstats")
         .setDescription("Show parsed armor stats")
         .addStringOption(o => o.setName("username").setDescription("Minecraft username").setRequired(true)),
@@ -609,6 +614,28 @@ client.on("interactionCreate", async interaction => {
             await interaction.editReply({ embeds: [embed] });
         }
 
+
+        // ── /loredump ─────────────────────────────────────────
+        else if (commandName === "loredump") {
+            await interaction.deferReply();
+            const username = interaction.options.getString("username");
+            const { member } = await fetchProfile(username);
+            const b64 = member.inventory?.inv_armor?.data || "";
+            const clean = b64.replace(/\s+/g, "");
+            const buf = Buffer.from(clean, "base64");
+            const gz = await new Promise((res, rej) => { zlib.gunzip(buf, (err, r) => err ? rej(err) : res(r)); });
+            const { parsed } = await nbt.parse(gz);
+            const lore = parsed?.value?.i?.value?.value?.[3]?.tag?.value?.display?.value?.Lore?.value?.value || [];
+
+            // Show first 5 lines with their char codes
+            let msg = "**Helmet lore raw (first 5 lines):**\n";
+            for (let i = 0; i < Math.min(5, lore.length); i++) {
+                const line = lore[i];
+                const codes = [...line].map(c => c.charCodeAt(0).toString(16)).join(" ");
+                msg += "Line " + i + ": `" + line + "`\nBytes: `" + codes + "`\n\n";
+            }
+            await interaction.editReply(msg.slice(0, 1900));
+        }
     } catch (err) {
         console.error("Command error:", err.message);
         const msg = `❌ ${err.message}`;
