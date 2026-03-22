@@ -90,7 +90,7 @@ async function fetchProfile(username, profileName = null) {
 
 // ── NBT Parser ─────────────────────────────────────────────────
 // Strip Minecraft color codes (§x)
-function stripColor(s) { return s.replace(/§[0-9a-fk-or]/g, "").trim(); }
+function stripColor(s) { return s.replace(/\u00a7[0-9a-fk-or]/gi, "").replace(/§[0-9a-fk-or]/gi, "").trim(); }
 
 // Parse stats from lore lines like "Health: +130", "Strength: +45"
 const LORE_STAT_MAP = {
